@@ -149,34 +149,33 @@ function lpcEnvelope(a, sampleRate, step) {
   return db;
 }
 
-function pickFormants(db, step, opts) {
-  const fmin = (opts && opts.fmin) || 90;
+function pickFormants(db, step) {
+  // 约束式找峰：F1 必须落在 180-1200 Hz，之后的峰逐个往高走，避免抓到高频噪声峰。
   const span = Math.round(250 / step);
-  const kmin = Math.max(1, Math.round(fmin / step));
-  const kmax = db.length - 2;
+  const kmin = Math.max(1, Math.round(140 / step));
+  const kmax = Math.min(db.length - 2, Math.round(4200 / step));
   const cands = [];
   for (let k = kmin; k < kmax; k++) {
     if (!(db[k] > db[k - 1] && db[k] >= db[k + 1])) continue;
     let lb = Infinity, rb = Infinity;
     for (let j = k - 1; j >= Math.max(kmin, k - span); j--) lb = Math.min(lb, db[j]);
     for (let j = k + 1; j <= Math.min(kmax, k + span); j++) rb = Math.min(rb, db[j]);
-    const prominence = db[k] - Math.max(lb, rb);
-    if (prominence >= 1.2) {
-      const y0 = db[k - 1], y1 = db[k], y2 = db[k + 1];
-      const den = y0 - 2 * y1 + y2;
-      const shift = Math.abs(den) > 1e-9 ? 0.5 * (y0 - y2) / den : 0;
-      cands.push({ hz: (k + Math.max(-0.5, Math.min(0.5, shift))) * step, prominence });
-    }
+    const prom = db[k] - Math.max(lb, rb);
+    if (prom >= 0.8) cands.push({ hz: k * step, prom });
   }
-  cands.sort((x, y) => y.prominence - x.prominence);
-  const picked = cands.slice(0, 8).sort((x, y) => x.hz - y.hz);
-  const out = [];
-  for (const c of picked) {
-    if (!out.length || c.hz - out[out.length - 1].hz > 120) out.push(c);
+  if (!cands.length) return [];
+  const head = cands.filter(c => c.hz >= 180 && c.hz <= 1200);
+  if (!head.length) return [];
+  head.sort((a, b) => b.prom - a.prom);
+  const f1 = head[0];
+  const out = [f1];
+  const rest = cands.filter(c => c.hz > f1.hz + 150).sort((a, b) => a.hz - b.hz);
+  for (const c of rest) {
+    if (c.hz - out[out.length - 1].hz > 150 && c.hz <= 4000) out.push(c);
+    if (out.length >= 4) break;
   }
-  return out.slice(0, 4).map(c => ({ hz: c.hz, prominence: c.prominence }));
+  return out.map(c => ({ hz: c.hz, prominence: c.prom }));
 }
-
 function fft(re, im) {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) {
@@ -248,15 +247,32 @@ function estimatePitch(x, sampleRate, opts) {
 function to16k(samples, sampleRate) {
   const factor = Math.max(1, Math.round(sampleRate / 16000));
   if (factor === 1) return { samples: samples, rate: sampleRate };
+  // 先过低通再抽点：3 点滑动平均会混叠，把 8 kHz 以上的噪声折回低频，污染 LPC。
+  const taps = 63;
+  const fc = 0.42; // 相对 Nyquist 的截止
+  const h = new Float64Array(taps);
+  let sum = 0;
+  for (let i = 0; i < taps; i++) {
+    const m = i - (taps - 1) / 2;
+    const sinc = m === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * m) / (Math.PI * m);
+    const win = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (taps - 1));
+    h[i] = sinc * win;
+    sum += h[i];
+  }
+  for (let i = 0; i < taps; i++) h[i] /= sum;
   const out = new Float32Array(Math.floor(samples.length / factor));
+  const half = (taps - 1) >> 1;
   for (let i = 0; i < out.length; i++) {
-    let s = 0;
-    for (let j = 0; j < factor; j++) s += samples[i * factor + j];
-    out[i] = s / factor;
+    const c = i * factor;
+    let acc = 0;
+    for (let k = 0; k < taps; k++) {
+      const idx = c - half + k;
+      if (idx >= 0 && idx < samples.length) acc += samples[idx] * h[k];
+    }
+    out[i] = acc;
   }
   return { samples: out, rate: sampleRate / factor };
 }
-
 function median(values) {
   if (!values.length) return 0;
   const s = values.slice().sort((a, b) => a - b);
@@ -440,34 +456,37 @@ function drawSpectrum(res) {
 }
 
 function drawPlane() {
+  // 标准元音图方向：横轴 F2（左边是前元音），纵轴 F1（上面是高元音）。
   const w = plane.width, h = plane.height;
-  const padL = 62, padR = 16, padT = 20, padB = 46;
-  const f1min = 200, f1max = 1050;
-  const f2min = 600, f2max = 3200;
-  const xOf = f1 => padL + (w - padL - padR) * (1 - (f1 - f1min) / (f1max - f1min));
-  const yOf = f2 => padB + (h - padT - padB) * (1 - (f2 - f2min) / (f2max - f2min));
+  const padL = 74, padR = 18, padT = 28, padB = 56;
+  const f2min = 700, f2max = 3200;
+  const f1min = 250, f1max = 1050;
+  const xOf = f2 => padL + (w - padL - padR) * (1 - (f2 - f2min) / (f2max - f2min));
+  const yOf = f1 => padB + (h - padT - padB) * ((f1 - f1min) / (f1max - f1min));
 
   pctx.clearRect(0, 0, w, h);
   pctx.fillStyle = '#0c1014'; pctx.fillRect(0, 0, w, h);
 
   pctx.strokeStyle = '#1c2430'; pctx.lineWidth = 1.5;
   pctx.fillStyle = '#5d6c7d'; pctx.font = '17px system-ui, sans-serif';
-  for (let f1 = 200; f1 <= 1000; f1 += 200) {
-    pctx.beginPath(); pctx.moveTo(xOf(f1), padT); pctx.lineTo(xOf(f1), h - padB); pctx.stroke();
-    pctx.fillText(String(f1), xOf(f1) - 15, h - padB + 24);
-  }
   for (let f2 = 1000; f2 <= 3000; f2 += 500) {
-    pctx.beginPath(); pctx.moveTo(padL, yOf(f2)); pctx.lineTo(w - padR, yOf(f2)); pctx.stroke();
-    pctx.fillText(String(f2), 6, yOf(f2) + 6);
+    pctx.beginPath(); pctx.moveTo(xOf(f2), padT); pctx.lineTo(xOf(f2), h - padB); pctx.stroke();
+    pctx.fillText(String(f2), xOf(f2) - 16, h - padB + 24);
+  }
+  for (let f1 = 300; f1 <= 1000; f1 += 200) {
+    pctx.beginPath(); pctx.moveTo(padL, yOf(f1)); pctx.lineTo(w - padR, yOf(f1)); pctx.stroke();
+    pctx.fillText(String(f1), 8, yOf(f1) + 6);
   }
   pctx.fillStyle = '#6f7d8d';
   pctx.font = '18px system-ui, sans-serif';
-  pctx.fillText('F1 →', w - padR - 56, h - 10);
-  pctx.fillText('↑ F2', padL + 2, padT + 14);
+  pctx.fillText('← 舌前', padL + 4, h - 14);
+  pctx.fillText('舌后 →', w - padR - 68, h - 14);
+  pctx.fillText('↑ 舌高', padL + 4, padT + 16);
+  pctx.fillText('横轴 F2，纵轴 F1', padL + 4, h - 32);
 
   for (const r of REF) {
     const v = refOf(r);
-    const x = xOf(v[0]), y = yOf(v[1]);
+    const x = xOf(v[1]), y = yOf(v[0]);
     const active = targetId === r.id;
     pctx.fillStyle = active ? '#4d657f' : '#28323d';
     pctx.beginPath(); pctx.arc(x, y, active ? 11 : 7, 0, Math.PI * 2); pctx.fill();
@@ -477,7 +496,7 @@ function drawPlane() {
   }
 
   const dot = (F1, F2, color, label, radius) => {
-    const x = xOf(F1), y = yOf(F2);
+    const x = xOf(F2), y = yOf(F1);
     pctx.fillStyle = color;
     pctx.beginPath(); pctx.arc(x, y, radius || 11, 0, Math.PI * 2); pctx.fill();
     pctx.strokeStyle = '#0c1014'; pctx.lineWidth = 3; pctx.stroke();
@@ -491,7 +510,6 @@ function drawPlane() {
   if (saved.B) dot(saved.B.F1, saved.B.F2, '#6fd08c', 'B');
   if (last && last.ok) dot(last.medians.F1, last.medians.F2, '#f0b45c', '');
 }
-
 function renderCards(res) {
   cardsEl.innerHTML = '';
   const add = (k, v, d) => {
