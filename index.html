@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>共振峰看看</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px 14px 36px; background: #101418; color: #e8edf3;
+         font: 15px/1.65 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: #8b98a8; font-size: 13px; margin: 0 0 16px; }
+  .row { display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+  button { font: inherit; padding: 9px 15px; border-radius: 8px; border: 1px solid #2b3543;
+           background: #1b222c; color: #e8edf3; cursor: pointer; transition: background .12s; }
+  button:hover:not(:disabled) { background: #242e3b; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.rec { background: #2a1d24; border-color: #5d2b3c; }
+  button.rec.on { background: #7d2439; border-color: #b03a55; }
+  .timer { color: #c78a9c; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .hint { color: #8b98a8; font-size: 13px; margin: 0 0 12px; min-height: 22px; }
+  .msg { color: #f0b45c; font-size: 13px; min-height: 22px; margin-top: 6px; }
+  canvas { width: 100%; display: block; background: #0c1014; border: 1px solid #212a36; border-radius: 10px; }
+  #cv { height: 230px; }
+  .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 640px) { .grid2 { grid-template-columns: 1.55fr 1fr; } }
+  #plane { height: 230px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 9px; margin-top: 12px; }
+  .card { background: #151b23; border: 1px solid #212a36; border-radius: 10px; padding: 9px 11px; }
+  .card .k { font-size: 12px; color: #8b98a8; }
+  .card .v { font-size: 21px; font-weight: 600; letter-spacing: .4px; font-variant-numeric: tabular-nums; }
+  .card .d { font-size: 12px; color: #77849a; }
+  .ok { color: #6fd08c; } .hi { color: #f0b45c; } .lo { color: #8fa8c8; }
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid #1c242f; vertical-align: top; }
+  th { color: #8b98a8; font-weight: 500; font-size: 13px; }
+  .foot { color: #6f7d8d; font-size: 12px; margin-top: 20px; line-height: 1.6; }
+  .cmp { margin-top: 14px; font-size: 14px; }
+  .cmp div { padding: 5px 0; border-bottom: 1px solid #1a222c; }
+  .cmp b { color: #cfd9e4; font-weight: 600; }
+  details { margin-top: 16px; font-size: 13px; color: #9aa8b8; }
+  summary { cursor: pointer; color: #b9c6d4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>共振峰看看</h1>
+  <p class="sub">录一段话或者拖长一个元音，看 F1 / F2 / F3 和音高到底在哪。数据只在浏览器里算，不上传。</p>
+
+  <div class="row">
+    <button id="rec" class="rec">开始录</button>
+    <button id="stop" disabled>停</button>
+    <button id="filebtn">选音频文件</button>
+    <input type="file" id="file" accept="audio/*" hidden>
+    <span class="timer" id="timer"></span>
+  </div>
+  <p class="hint" id="status">还没录。元音拖长 2 秒最准；说一整句也行，会取中间值。</p>
+
+  <div class="grid2">
+    <div>
+      <canvas id="cv" width="1400" height="460"></canvas>
+    </div>
+    <div>
+      <canvas id="plane" width="720" height="460"></canvas>
+    </div>
+  </div>
+  <div class="msg" id="msg"></div>
+  <div class="cards" id="cards"></div>
+  <div class="cmp" id="cmp"></div>
+
+  <div class="row" style="margin-top:14px">
+    <button id="saveA" disabled>存为 A（改之前）</button>
+    <button id="saveB" disabled>存为 B（改之后）</button>
+    <button id="copy" disabled>复制读数</button>
+    <button id="reset" disabled>清空</button>
+  </div>
+
+  <table>
+    <thead><tr><th>元音</th><th>女声参考 F1</th><th>女声参考 F2</th><th>舌位</th></tr></thead>
+    <tbody>
+      <tr><td>啊 /a/</td><td>850</td><td>1220</td><td>嘴张开，舌放低</td></tr>
+      <tr><td>衣 /i/</td><td>310</td><td>2790</td><td>嘴角向两边，舌面靠前靠上</td></tr>
+      <tr><td>乌 /u/</td><td>370</td><td>950</td><td>嘴收圆，舌往后缩</td></tr>
+    </tbody>
+  </table>
+
+  <details>
+    <summary>怎么读这些数（点开）</summary>
+    <p>F1 主要由舌位高低决定，舌头抬高 F1 就往下走；F2 由舌头前后和嘴唇决定，舌头前伸、嘴角一展 F2 就往上升；F3 跟卷舌、咽腔形状关系更大。音高 F0 是声带的事，跟这三个没有直接关系，所以抬音高不会把共振峰一起带走。</p>
+    <p>页面用 LPC 估频谱包络，读数普遍比教科书高 50 到 100 Hz，所以拿它比「同一个人前后变化」比看绝对值靠谱。测量点画在右边的 F1–F2 平面上，位置比数字直观：点偏右是 F1 高、舌头不够高；点偏下是 F2 低、口腔后部用得多。</p>
+    <p>「有效帧」指整段录音里能稳定算出共振峰的帧数，比例太低说明气声太多、太轻，或者离麦太远。</p>
+  </details>
+
+  <p class="foot">
+    参考值取 Peterson &amp; Barney 女声组。共振峰估计用 LPC（阶数 12，16 kHz），子带峰值取抛物线插值。
+    页面在本地算完就丢，不联网、不留档。
+  </p>
+</div>
+
+<script>
+// ==== DSP BEGIN ====
+function autocorr(x, order) {
+  const r = new Float64Array(order + 1);
+  for (let k = 0; k <= order; k++) {
+    let s = 0;
+    for (let i = 0; i + k < x.length; i++) s += x[i] * x[i + k];
+    r[k] = s;
+  }
+  return r;
+}
+
+function levinson(r, order) {
+  const a = new Float64Array(order + 1);
+  const tmp = new Float64Array(order + 1);
+  a[0] = 1;
+  let err = r[0];
+  if (!(err > 0)) return null;
+  for (let i = 1; i <= order; i++) {
+    let acc = r[i];
+    for (let j = 1; j < i; j++) acc += a[j] * r[i - j];
+    const k = -acc / err;
+    for (let j = 0; j <= i; j++) tmp[j] = a[j];
+    for (let j = 1; j < i; j++) a[j] = tmp[j] + k * tmp[i - j];
+    a[i] = k;
+    err *= 1 - k * k;
+    if (!(err > 0)) return null;
+  }
+  return a;
+}
+
+function lpcEnvelope(a, sampleRate, step) {
+  const bins = Math.floor((sampleRate / 2) / step);
+  const db = new Float64Array(bins + 1);
+  for (let k = 0; k <= bins; k++) {
+    const w = 2 * Math.PI * (k * step) / sampleRate;
+    const cw = Math.cos(w), sw = Math.sin(w);
+    let vr = a[a.length - 1], vi = 0;
+    for (let i = a.length - 2; i >= 0; i--) {
+      const nr = vr * cw + vi * sw + a[i];
+      const ni = -vr * sw + vi * cw;
+      vr = nr; vi = ni;
+    }
+    db[k] = -20 * Math.log10(Math.max(1e-9, Math.hypot(vr, vi)));
+  }
+  return db;
+}
+
+function pickFormants(db, step, opts) {
+  const fmin = (opts && opts.fmin) || 90;
+  const span = Math.round(250 / step);
+  const kmin = Math.max(1, Math.round(fmin / step));
+  const kmax = db.length - 2;
+  const cands = [];
+  for (let k = kmin; k < kmax; k++) {
+    if (!(db[k] > db[k - 1] && db[k] >= db[k + 1])) continue;
+    let lb = Infinity, rb = Infinity;
+    for (let j = k - 1; j >= Math.max(kmin, k - span); j--) lb = Math.min(lb, db[j]);
+    for (let j = k + 1; j <= Math.min(kmax, k + span); j++) rb = Math.min(rb, db[j]);
+    const prominence = db[k] - Math.max(lb, rb);
+    if (prominence >= 1.2) {
+      const y0 = db[k - 1], y1 = db[k], y2 = db[k + 1];
+      const den = y0 - 2 * y1 + y2;
+      const shift = Math.abs(den) > 1e-9 ? 0.5 * (y0 - y2) / den : 0;
+      cands.push({ hz: (k + Math.max(-0.5, Math.min(0.5, shift))) * step, prominence });
+    }
+  }
+  cands.sort((x, y) => y.prominence - x.prominence);
+  const picked = cands.slice(0, 8).sort((x, y) => x.hz - y.hz);
+  const out = [];
+  for (const c of picked) {
+    if (!out.length || c.hz - out[out.length - 1].hz > 120) out.push(c);
+  }
+  return out.slice(0, 4).map(c => ({ hz: c.hz, prominence: c.prominence }));
+}
+
+function estimatePitch(x, sampleRate, opts) {
+  const fmin = (opts && opts.fmin) || 70;
+  const fmax = (opts && opts.fmax) || 500;
+  const maxLag = Math.min(x.length - 2, Math.floor(sampleRate / fmin));
+  const minLag = Math.max(2, Math.floor(sampleRate / fmax));
+  let energy = 0;
+  for (let i = 0; i < x.length; i++) energy += x[i] * x[i];
+  if (energy / x.length < 1e-6 || maxLag <= minLag + 2) return 0;
+  const n = x.length;
+  const r = new Float64Array(maxLag + 2);
+  for (let lag = minLag - 1; lag <= maxLag + 1 && lag < n; lag++) {
+    let s = 0, e1 = 0, e2 = 0;
+    for (let i = 0; i + lag < n; i++) {
+      s += x[i] * x[i + lag];
+      e1 += x[i] * x[i];
+      e2 += x[i + lag] * x[i + lag];
+    }
+    r[lag] = s / (Math.sqrt(e1 * e2) || 1);
+  }
+  let bestPeak = 0, bestLag = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    if (r[lag] > r[lag - 1] && r[lag] >= r[lag + 1] && r[lag] > bestPeak) {
+      bestPeak = r[lag]; bestLag = lag;
+    }
+  }
+  if (bestPeak < 0.3 || !bestLag) return 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    if (r[lag] > r[lag - 1] && r[lag] >= r[lag + 1] && r[lag] > bestPeak * 0.85) {
+      const ratio = bestLag / lag;
+      if (ratio > 1.8 && ratio < 2.2) { bestLag = lag; break; }
+    }
+  }
+  const y0 = r[bestLag - 1], y1 = r[bestLag], y2 = r[bestLag + 1];
+  const den = y0 - 2 * y1 + y2;
+  const shift = Math.abs(den) > 1e-9 ? 0.5 * (y0 - y2) / den : 0;
+  return sampleRate / (bestLag + Math.max(-0.5, Math.min(0.5, shift)));
+}
+
+function to16k(samples, sampleRate) {
+  const factor = Math.max(1, Math.round(sampleRate / 16000));
+  if (factor === 1) return { samples: samples, rate: sampleRate };
+  const out = new Float32Array(Math.floor(samples.length / factor));
+  for (let i = 0; i < out.length; i++) {
+    let s = 0;
+    for (let j = 0; j < factor; j++) s += samples[i * factor + j];
+    out[i] = s / factor;
+  }
+  return { samples: out, rate: sampleRate / factor };
+}
+
+function median(values) {
+  if (!values.length) return 0;
+  const s = values.slice().sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function percentile(values, p) {
+  if (!values.length) return 0;
+  const s = values.slice().sort((a, b) => a - b);
+  const idx = Math.min(s.length - 1, Math.max(0, Math.round((s.length - 1) * p)));
+  return s[idx];
+}
+
+// Whole recording -> per-frame formants + F0, then medians over voiced frames.
+function analyseVoice(samples, sampleRate) {
+  const dec = to16k(samples, sampleRate);
+  const x = dec.samples, sr = dec.rate;
+  const size = Math.round(0.04 * sr);
+  if (!x.length || x.length < size * 2) return { ok: false, why: '录音太短，至少说 0.5 秒。' };
+  const total = Math.floor((x.length - size) / Math.max(1, Math.floor(size / 3))) + 1;
+  const stride = Math.max(1, Math.ceil(total / 300)); // cap the work at ~300 frames
+  const hop = Math.max(1, Math.floor(size / 3)) * stride;
+
+  const frames = [];
+  for (let s = 0; s + size <= x.length; s += hop) {
+    let e = 0;
+    for (let i = 0; i < size; i++) e += x[s + i] * x[s + i];
+    const rms = Math.sqrt(e / size);
+    if (rms < 0.004) continue;
+    const seg = x.subarray(s, s + size);
+    const pre = new Float64Array(size);
+    for (let i = 0; i < size; i++) {
+      const v = i === 0 ? seg[0] : seg[i] - 0.97 * seg[i - 1];
+      pre[i] = v * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (size - 1)));
+    }
+    const a = levinson(autocorr(pre, 12), 12);
+    if (!a) continue;
+    const step = 2;
+    const db = lpcEnvelope(a, sr, step);
+    const fs = pickFormants(db, step, { fmin: 90 });
+    if (fs.length < 2) continue;
+    const f0 = estimatePitch(x.subarray(s, Math.min(x.length, s + size * 2)), sr, { fmin: 70, fmax: 500 });
+    frames.push({ t: s / sr, rms, f0, formants: fs, db, step, sr, clarity: fs[1].prominence });
+  }
+  if (frames.length < 3) {
+    return {
+      ok: false,
+      why: '没找到够多的有声段。靠近麦克风、音量再大一点，或者换个安静地方重录。',
+      frames: frames.length,
+      db: frames.length ? frames[0].db : null,
+      step: 2,
+      formants: frames.length ? frames[0].formants : [],
+      f0: frames.length ? frames[0].f0 : 0
+    };
+  }
+  const F1 = frames.map(f => f.formants[0].hz);
+  const F2 = frames.map(f => f.formants[1].hz);
+  const F3 = frames.filter(f => f.formants[2]).map(f => f.formants[2].hz);
+  const f0s = frames.filter(f => f.f0 > 0).map(f => f.f0);
+  // frame used for the drawing: clearest F2, matching the voiced set
+  const bestFrame = frames.slice().sort((p, q) => q.clarity - p.clarity)[0];
+  const voices = frames.filter(f => f.rms > 0.004).length;
+  return {
+    ok: true,
+    frames: frames.length,
+    duration: x.length / sr,
+    medians: { F1: median(F1), F2: median(F2), F3: median(F3) },
+    f0: f0s.length ? median(f0s) : 0,
+    f0Low: f0s.length ? percentile(f0s, 0.1) : 0,
+    f0High: f0s.length ? percentile(f0s, 0.9) : 0,
+    span: f0s.length ? 0.5 * Math.log2(percentile(f0s, 0.9) / Math.max(1, percentile(f0s, 0.1))) * 2 : 0,
+    db: bestFrame.db,
+    step: bestFrame.step,
+    sr: bestFrame.sr,
+    formants: bestFrame.formants,
+    f0Draw: bestFrame.f0,
+    voicedRatio: voices / Math.max(1, Math.round((x.length - size) / hop) + 1)
+  };
+}
+// ==== DSP END ====
+
+const el = id => document.getElementById(id);
+const cv = el('cv'), ctx = cv.getContext('2d');
+const plane = el('plane'), pctx = plane.getContext('2d');
+const statusEl = el('status'), msgEl = el('msg'), cardsEl = el('cards'), cmpEl = el('cmp');
+const timerEl = el('timer');
+
+const REF = [
+  { name: '啊', F1: 850, F2: 1220 },
+  { name: '衣', F1: 310, F2: 2790 },
+  { name: '乌', F1: 370, F2: 950 }
+];
+
+let last = null;
+let saved = { A: null, B: null };
+
+function drawEmpty(text) {
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0c1014'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#3d4a5a';
+  ctx.font = '30px system-ui, "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, w / 2, h / 2);
+  ctx.textAlign = 'left';
+}
+
+function drawPlaneEmpty() {
+  const w = plane.width, h = plane.height;
+  pctx.clearRect(0, 0, w, h);
+  pctx.fillStyle = '#0c1014'; pctx.fillRect(0, 0, w, h);
+  pctx.fillStyle = '#3d4a5a';
+  pctx.font = '26px system-ui, sans-serif';
+  pctx.textAlign = 'center';
+  pctx.fillText('F1–F2 平面', w / 2, h / 2);
+  pctx.textAlign = 'left';
+}
+
+function drawSpectrum(res) {
+  const w = cv.width, h = cv.height;
+  const padL = 74, padR = 20, padT = 26, padB = 46;
+  const fmax = 4500;
+  const n = Math.min(res.db.length, Math.round(fmax / res.step));
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < n; k++) { lo = Math.min(lo, res.db[k]); hi = Math.max(hi, res.db[k]); }
+  const yOf = v => padB + (h - padT - padB) * (1 - (v - lo) / Math.max(1e-6, hi - lo));
+  const xOf = f => padL + (w - padL - padR) * (f / fmax);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0c1014'; ctx.fillRect(0, 0, w, h);
+
+  if (res.f0Draw > 0) {
+    ctx.strokeStyle = 'rgba(120,170,230,0.28)';
+    ctx.lineWidth = 1.5;
+    for (let f = res.f0Draw; f < fmax; f += res.f0Draw) {
+      ctx.beginPath(); ctx.moveTo(xOf(f), padT); ctx.lineTo(xOf(f), h - padB); ctx.stroke();
+    }
+  }
+
+  ctx.strokeStyle = '#1c2430'; ctx.lineWidth = 1.5;
+  ctx.fillStyle = '#5d6c7d'; ctx.font = '20px system-ui, sans-serif';
+  for (let f = 0; f <= fmax; f += 1000) {
+    ctx.beginPath(); ctx.moveTo(xOf(f), padT); ctx.lineTo(xOf(f), h - padB); ctx.stroke();
+    ctx.fillText(String(f), xOf(f) - 10, h - padB + 30);
+  }
+
+  ctx.strokeStyle = '#63c6a0'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let k = 0; k < n; k++) {
+    const x = xOf(k * res.step), y = yOf(res.db[k]);
+    if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  const names = ['F1', 'F2', 'F3', 'F4'];
+  for (let i = 0; i < res.formants.length; i++) {
+    const f = res.formants[i].hz;
+    ctx.strokeStyle = '#f0b45c'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(xOf(f), padT); ctx.lineTo(xOf(f), h - padB); ctx.stroke();
+    ctx.fillStyle = '#f0b45c';
+    ctx.font = '23px system-ui, sans-serif';
+    ctx.fillText(names[i] + ' ' + Math.round(f), xOf(f) + 7, padT + 24 + i * 25);
+  }
+  if (res.f0Draw > 0) {
+    ctx.fillStyle = '#7fb2e8';
+    ctx.font = '21px system-ui, sans-serif';
+    ctx.fillText('细线＝F0 ' + Math.round(res.f0Draw) + ' Hz 的谐波', padL + 8, h - padB - 14);
+  }
+}
+
+function drawPlane(res) {
+  const w = plane.width, h = plane.height;
+  const padL = 66, padR = 18, padT = 22, padB = 52;
+  const f1min = 200, f1max = 1000;
+  const f2min = 700, f2max = 3200;
+  const xOf = f1 => padL + (w - padL - padR) * (1 - (f1 - f1min) / (f1max - f1min));
+  const yOf = f2 => padB + (h - padT - padB) * (1 - (f2 - f2min) / (f2max - f2min));
+
+  pctx.clearRect(0, 0, w, h);
+  pctx.fillStyle = '#0c1014'; pctx.fillRect(0, 0, w, h);
+
+  pctx.strokeStyle = '#1c2430'; pctx.lineWidth = 1.5;
+  pctx.fillStyle = '#5d6c7d'; pctx.font = '19px system-ui, sans-serif';
+  for (let f1 = 200; f1 <= 1000; f1 += 200) {
+    pctx.beginPath(); pctx.moveTo(xOf(f1), padT); pctx.lineTo(xOf(f1), h - padB); pctx.stroke();
+    pctx.fillText(String(f1), xOf(f1) - 16, h - padB + 28);
+  }
+  for (let f2 = 1000; f2 <= 3000; f2 += 500) {
+    pctx.beginPath(); pctx.moveTo(padL, yOf(f2)); pctx.lineTo(w - padR, yOf(f2)); pctx.stroke();
+    pctx.fillText(String(f2), 8, yOf(f2) + 7);
+  }
+  pctx.fillStyle = '#6f7d8d';
+  pctx.fillText('F1 →', w - padR - 60, h - 12);
+  pctx.fillText('↑ F2', padL + 4, padT + 14);
+
+  for (const r of REF) {
+    const x = xOf(r.F1), y = yOf(r.F2);
+    pctx.fillStyle = '#33404f';
+    pctx.beginPath(); pctx.arc(x, y, 7, 0, Math.PI * 2); pctx.fill();
+    pctx.fillStyle = '#7c8a9a';
+    pctx.font = '22px system-ui, "Microsoft YaHei", sans-serif';
+    pctx.fillText(r.name, x + 12, y + 8);
+  }
+
+  const dot = (F1, F2, color, label) => {
+    const x = xOf(F1), y = yOf(F2);
+    pctx.fillStyle = color;
+    pctx.beginPath(); pctx.arc(x, y, 11, 0, Math.PI * 2); pctx.fill();
+    pctx.strokeStyle = '#0c1014'; pctx.lineWidth = 3; pctx.stroke();
+    if (label) {
+      pctx.fillStyle = color;
+      pctx.font = '22px system-ui, sans-serif';
+      pctx.fillText(label, x + 15, y - 12);
+    }
+  };
+  if (saved.A) dot(saved.A.F1, saved.A.F2, '#7fb2e8', 'A');
+  if (saved.B) dot(saved.B.F1, saved.B.F2, '#6fd08c', 'B');
+  dot(res.medians.F1, res.medians.F2, '#f0b45c', '');
+}
+
+function renderCards(res) {
+  cardsEl.innerHTML = '';
+  const add = (k, v, d) => {
+    const c = document.createElement('div');
+    c.className = 'card';
+    c.innerHTML = '<div class="k">' + k + '</div><div class="v">' + v + '</div>' +
+      (d ? '<div class="d">' + d + '</div>' : '');
+    cardsEl.appendChild(c);
+  };
+  add('F1', Math.round(res.medians.F1) + ' Hz', '舌位高低');
+  add('F2', Math.round(res.medians.F2) + ' Hz', '舌位前后 / 唇形');
+  add('F3', res.medians.F3 ? Math.round(res.medians.F3) + ' Hz' : '—', '咽腔 / 卷舌');
+  add('F0 音高', res.f0 ? Math.round(res.f0) + ' Hz' : '—',
+      res.f0 ? Math.round(res.f0Low) + '–' + Math.round(res.f0High) + ' Hz' : '');
+  add('F2 ÷ F0', res.f0 ? (res.medians.F2 / res.f0).toFixed(1) : '—',
+      res.f0 ? (res.medians.F2 / res.f0 < 9 ? '偏低，前腔没撑起来' : '还行') : '');
+  add('有效帧', res.frames + '', '占比 ' + Math.round(res.voicedRatio * 100) + '%');
+}
+
+function interpret(res) {
+  const F1 = res.medians.F1, F2 = res.medians.F2;
+  let best = REF[0], bestD = Infinity;
+  for (const r of REF) {
+    const d = Math.hypot((F1 - r.F1) / 200, (F2 - r.F2) / 600);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  const dF1 = Math.round(F1 - best.F1), dF2 = Math.round(F2 - best.F2);
+  const bits = ['最接近「' + best.name + '」'];
+  bits.push('F1 ' + (dF1 >= 0 ? '高 ' : '低 ') + Math.abs(dF1) + ' Hz');
+  bits.push('F2 ' + (dF2 >= 0 ? '高 ' : '低 ') + Math.abs(dF2) + ' Hz');
+  if (res.voicedRatio < 0.35) bits.push('有声段太少，气声偏多');
+  else if (res.voicedRatio < 0.6 && res.medians.F3 === 0) bits.push('F3 没稳定出来');
+  msgEl.textContent = bits.join('，') + '。（页面读数比教科书普遍高 50–100 Hz，看变化为主）';
+}
+
+function renderCmp() {
+  if (!saved.A || !saved.B) {
+    cmpEl.innerHTML = saved.A || saved.B
+      ? '<div>已存 ' + (saved.A ? 'A' : 'B') + '，再录一次存另一个就能比。</div>'
+      : '';
+    return;
+  }
+  const diff = (a, b, unit) => {
+    const d = Math.round(b - a);
+    const cls = d > 0 ? 'hi' : (d < 0 ? 'lo' : '');
+    return '<span class="' + cls + '">' + (d > 0 ? '+' : '') + d + (unit || '') + '</span>';
+  };
+  cmpEl.innerHTML =
+    '<div>A → B　F1 ' + diff(saved.A.F1, saved.B.F1, ' Hz') +
+    '　F2 ' + diff(saved.A.F2, saved.B.F2, ' Hz') +
+    '　F0 ' + diff(saved.A.F0, saved.B.F0, ' Hz') + '</div>' +
+    '<div>A：F1 ' + Math.round(saved.A.F1) + ' / F2 ' + Math.round(saved.A.F2) +
+    (saved.A.F0 ? ' / F0 ' + Math.round(saved.A.F0) : '') + '</div>' +
+    '<div>B：F1 ' + Math.round(saved.B.F1) + ' / F2 ' + Math.round(saved.B.F2) +
+    (saved.B.F0 ? ' / F0 ' + Math.round(saved.B.F0) : '') + '</div>';
+}
+
+function handleResult(res) {
+  last = res;
+  if (!res.ok) {
+    statusEl.textContent = res.why || '没算出来。';
+    msgEl.textContent = '';
+    if (res.db) drawSpectrum(res);
+    cardsEl.innerHTML = '';
+    el('saveA').disabled = el('saveB').disabled = el('copy').disabled = el('reset').disabled = true;
+    return;
+  }
+  statusEl.textContent = '算好了：' + (res.duration || 0).toFixed(1) + ' 秒，' + res.frames + ' 帧有效。';
+  drawSpectrum(res);
+  drawPlane(res);
+  renderCards(res);
+  interpret(res);
+  el('saveA').disabled = el('saveB').disabled = el('copy').disabled = el('reset').disabled = false;
+}
+
+// --- recording ---
+let audioCtx = null, recording = false, capture = null, timerId = null, startedAt = 0;
+const MAX_SECONDS = 30;
+
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const src = audioCtx.createMediaStreamSource(stream);
+    const sp = audioCtx.createScriptProcessor(4096, 1, 1);
+    const buf = [];
+    sp.onaudioprocess = e => { if (recording) buf.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    src.connect(sp);
+    const mute = audioCtx.createGain();
+    mute.gain.value = 0;
+    sp.connect(mute);
+    mute.connect(audioCtx.destination);
+    capture = { stream, sp, buf, mute };
+    recording = true;
+    startedAt = performance.now();
+    el('rec').classList.add('on');
+    el('rec').textContent = '录着……';
+    el('stop').disabled = false;
+    el('rec').disabled = true;
+    statusEl.textContent = '录着。元音拖长 2 秒，或者随便说一句。最多 ' + MAX_SECONDS + ' 秒。';
+    timerId = setInterval(() => {
+      const s = (performance.now() - startedAt) / 1000;
+      timerEl.textContent = s.toFixed(1) + ' s';
+      if (s >= MAX_SECONDS) stopRec();
+    }, 100);
+  } catch (err) {
+    statusEl.textContent = '打不开麦克风：' + (err && err.message ? err.message : err) +
+      '。可以用「选音频文件」把录音拖进来。';
+  }
+}
+
+function stopRec() {
+  if (!capture) return;
+  recording = false;
+  clearInterval(timerId);
+  timerEl.textContent = '';
+  const { stream, sp, buf, mute } = capture;
+  try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { sp.disconnect(); mute.disconnect(); } catch (e) {}
+  el('rec').classList.remove('on');
+  el('rec').textContent = '再录一次';
+  el('rec').disabled = false;
+  el('stop').disabled = true;
+  capture = null;
+  if (!buf.length) { statusEl.textContent = '没收到声音。'; return; }
+  let len = 0; for (const b of buf) len += b.length;
+  const all = new Float32Array(len);
+  let o = 0; for (const b of buf) { all.set(b, o); o += b.length; }
+  statusEl.textContent = '算……';
+  const sr = audioCtx ? audioCtx.sampleRate : 48000;
+  setTimeout(() => {
+    try { handleResult(analyseVoice(all, sr)); }
+    catch (err) { statusEl.textContent = '算的时候出错：' + err.message; }
+  }, 20);
+}
+
+el('rec').addEventListener('click', startRec);
+el('stop').addEventListener('click', stopRec);
+el('filebtn').addEventListener('click', () => el('file').click());
+el('file').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  statusEl.textContent = '读文件……';
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ab = await f.arrayBuffer();
+    const audio = await audioCtx.decodeAudioData(ab);
+    handleResult(analyseVoice(audio.getChannelData(0), audio.sampleRate));
+  } catch (err) {
+    statusEl.textContent = '读不了这个文件：' + err.message;
+  }
+  e.target.value = '';
+});
+
+function snapshot() {
+  return last && last.ok ? { F1: last.medians.F1, F2: last.medians.F2, F3: last.medians.F3, F0: last.f0 } : null;
+}
+el('saveA').addEventListener('click', () => { const s = snapshot(); if (s) { saved.A = s; renderCmp(); drawPlane(last); } });
+el('saveB').addEventListener('click', () => { const s = snapshot(); if (s) { saved.B = s; renderCmp(); drawPlane(last); } });
+el('copy').addEventListener('click', async () => {
+  if (!snapshot()) return;
+  const s = snapshot();
+  const text = 'F1 ' + Math.round(s.F1) + ' Hz / F2 ' + Math.round(s.F2) + ' Hz' +
+    (s.F3 ? ' / F3 ' + Math.round(s.F3) + ' Hz' : '') + (s.F0 ? ' / F0 ' + Math.round(s.F0) + ' Hz' : '');
+  try { await navigator.clipboard.writeText(text); el('copy').textContent = '复制好了'; }
+  catch (e) { el('copy').textContent = text; }
+  setTimeout(() => { el('copy').textContent = '复制读数'; }, 1500);
+});
+el('reset').addEventListener('click', () => {
+  saved = { A: null, B: null };
+  last = null;
+  cardsEl.innerHTML = '';
+  msgEl.textContent = '';
+  cmpEl.innerHTML = '';
+  drawEmpty('录一段，或者选个音频文件');
+  drawPlaneEmpty();
+  statusEl.textContent = '清空了。';
+  el('saveA').disabled = el('saveB').disabled = el('copy').disabled = el('reset').disabled = true;
+});
+
+drawEmpty('录一段，或者选个音频文件');
+drawPlaneEmpty();
+</script>
+</body>
+</html>
