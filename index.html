@@ -177,44 +177,74 @@ function pickFormants(db, step, opts) {
   return out.slice(0, 4).map(c => ({ hz: c.hz, prominence: c.prominence }));
 }
 
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { const tr = re[i]; re[i] = re[j]; re[j] = tr; const ti = im[i]; im[i] = im[j]; im[j] = ti; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ur = re[i + k], ui = im[i + k];
+        const vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
+        const vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+        re[i + k] = ur + vr; im[i + k] = ui + vi;
+        re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
+        const ncr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr; cr = ncr;
+      }
+    }
+  }
+}
+
+function pitchHPS(x, sampleRate, fmin, fmax) {
+  // 谐波求和（HPS）：对每个候选 F0 取前 6 个谐波位置的谱值求和，取最大。
+  // 比自相关/差分函数抗倍频错误：低八度的候选只能对上隔一个的谐波，分更低。
+  const N = Math.min(2048, 1 << Math.floor(Math.log2(Math.max(256, x.length))));
+  if (x.length < 256) return 0;
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const v = i < x.length ? x[i] : 0;
+    re[i] = v * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)));
+  }
+  fft(re, im);
+  const half = N >> 1;
+  const mag = new Float64Array(half);
+  let maxm = 0;
+  for (let k = 1; k < half; k++) { mag[k] = Math.hypot(re[k], im[k]); if (mag[k] > maxm) maxm = mag[k]; }
+  if (!(maxm > 0)) return 0;
+  const logmag = new Float64Array(half);
+  const floor = maxm * 1e-5;
+  for (let k = 1; k < half; k++) logmag[k] = Math.log(mag[k] + floor);
+  const binHz = sampleRate / N;
+  let best = 0, bestScore = -Infinity;
+  for (let f0 = fmin; f0 <= fmax; f0 += 0.25) {
+    let score = 0, used = 0;
+    for (let h = 1; h <= 8; h++) {
+      const f = f0 * h;
+      if (f >= sampleRate / 2 - 40) break;
+      const pos = f / binHz;
+      const i0 = Math.floor(pos), fr = pos - i0;
+      if (i0 + 1 >= half) break;
+      score += (logmag[i0] * (1 - fr) + logmag[i0 + 1] * fr) * (1 / h); // 高次谐波权重递降
+      used++;
+    }
+    if (used >= 3 && score > bestScore) { bestScore = score; best = f0; }
+  }
+  return best;
+}
+
 function estimatePitch(x, sampleRate, opts) {
   const fmin = (opts && opts.fmin) || 70;
   const fmax = (opts && opts.fmax) || 500;
-  const maxLag = Math.min(x.length - 2, Math.floor(sampleRate / fmin));
-  const minLag = Math.max(2, Math.floor(sampleRate / fmax));
-  let energy = 0;
-  for (let i = 0; i < x.length; i++) energy += x[i] * x[i];
-  if (energy / x.length < 1e-6 || maxLag <= minLag + 2) return 0;
-  const n = x.length;
-  const r = new Float64Array(maxLag + 2);
-  for (let lag = minLag - 1; lag <= maxLag + 1 && lag < n; lag++) {
-    let s = 0, e1 = 0, e2 = 0;
-    for (let i = 0; i + lag < n; i++) {
-      s += x[i] * x[i + lag];
-      e1 += x[i] * x[i];
-      e2 += x[i + lag] * x[i + lag];
-    }
-    r[lag] = s / (Math.sqrt(e1 * e2) || 1);
-  }
-  let bestPeak = 0, bestLag = 0;
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    if (r[lag] > r[lag - 1] && r[lag] >= r[lag + 1] && r[lag] > bestPeak) {
-      bestPeak = r[lag]; bestLag = lag;
-    }
-  }
-  if (bestPeak < 0.3 || !bestLag) return 0;
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    if (r[lag] > r[lag - 1] && r[lag] >= r[lag + 1] && r[lag] > bestPeak * 0.85) {
-      const ratio = bestLag / lag;
-      if (ratio > 1.8 && ratio < 2.2) { bestLag = lag; break; }
-    }
-  }
-  const y0 = r[bestLag - 1], y1 = r[bestLag], y2 = r[bestLag + 1];
-  const den = y0 - 2 * y1 + y2;
-  const shift = Math.abs(den) > 1e-9 ? 0.5 * (y0 - y2) / den : 0;
-  return sampleRate / (bestLag + Math.max(-0.5, Math.min(0.5, shift)));
+  return pitchHPS(x, sampleRate, fmin, fmax);
 }
-
 function to16k(samples, sampleRate) {
   const factor = Math.max(1, Math.round(sampleRate / 16000));
   if (factor === 1) return { samples: samples, rate: sampleRate };
