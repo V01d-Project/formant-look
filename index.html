@@ -132,6 +132,74 @@ function levinson(r, order) {
   return a;
 }
 
+// ---- LPC 根的取法（2026-10-26）----
+// 包络找峰在 F1、F2 挨得近时会并成一个峰（乌 724 和 F1 482 只差 240 Hz，
+// 哦 895 和 F1 623 只差 270 Hz），根不会：两个共振峰始终是两对复根。
+function polyRoots(a) {
+  const n = a.length - 1;
+  const re = new Float64Array(n), im = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = 0.4 + 0.9 * i;
+    re[i] = Math.pow(0.9, i) * Math.cos(r * 1.7);
+    im[i] = Math.pow(0.9, i) * Math.sin(r * 1.7);
+  }
+  for (let it = 0; it < 300; it++) {
+    let worst = 0;
+    for (let i = 0; i < n; i++) {
+      let pr = 1, pi = 0;
+      for (let k = 1; k <= n; k++) {
+        const xr = pr * re[i] - pi * im[i] + a[k];
+        const xi = pr * im[i] + pi * re[i];
+        pr = xr; pi = xi;
+      }
+      let dr = 1, di = 0;
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue;
+        const xr = re[i] - re[j], xi = im[i] - im[j];
+        const nr = dr * xr - di * xi, ni = dr * xi + di * xr;
+        dr = nr; di = ni;
+      }
+      const den = dr * dr + di * di;
+      if (!(den > 1e-18)) continue;
+      const qr = (pr * dr + pi * di) / den, qi = (pi * dr - pr * di) / den;
+      re[i] -= qr; im[i] -= qi;
+      worst = Math.max(worst, Math.hypot(qr, qi));
+    }
+    if (worst < 1e-11) break;
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) out.push([re[i], im[i]]);
+  return out;
+}
+
+function formantsFromRoots(pre, sr, order) {
+  // 阶数跟着采样率走：16 kHz 用 14 阶，44.1/48 kHz 要用 38 阶左右才能把
+  // 0-3 kHz 的极点分得开，否则根全挤在低频、F1/F2 直接对不上。
+  if (!order) order = Math.max(12, Math.round(sr / 1150));
+  const a = levinson(autocorr(pre, order), order);
+  if (!a) return null;
+  const cands = [];
+  for (const [r, i] of polyRoots(Array.from(a))) {
+    if (!(i > 0)) continue;
+    const mag = Math.hypot(r, i);
+    if (!(mag > 0 && mag < 1)) continue;
+    const f = Math.atan2(i, r) / (2 * Math.PI) * sr;
+    const bw = -0.5 * (sr / (2 * Math.PI)) * Math.log(mag);
+    if (f > 150 && f < Math.min(5200, sr / 2 - 100) && bw < 500) cands.push(f);
+  }
+  if (cands.length < 2) return null;
+  cands.sort((p, q) => p - q);
+  const out = [cands[0]];
+  for (const f of cands) {
+    if (f >= out[out.length - 1] + 150) {
+      out.push(f);
+      if (out.length >= 4) break;
+    }
+  }
+  if (out.length < 2 || out[0] > 1300) return null;
+  return out;
+}
+
 function lpcEnvelope(a, sampleRate, step) {
   const bins = Math.floor((sampleRate / 2) / step);
   const db = new Float64Array(bins + 1);
@@ -313,7 +381,8 @@ function analyseVoice(samples, sampleRate) {
     if (!a) continue;
     const step = 2;
     const db = lpcEnvelope(a, sr, step);
-    const fs = pickFormants(db, step, { fmin: 90 });
+    const rootFs = formantsFromRoots(pre, sr);
+    const fs = rootFs ? rootFs.map(hz => ({ hz, prominence: 99 })) : pickFormants(db, step, { fmin: 90 });
     if (fs.length < 2) continue;
     const f0 = estimatePitch(x.subarray(s, Math.min(x.length, s + size * 2)), sr, { fmin: 70, fmax: 500 });
     frames.push({ t: s / sr, rms, f0, formants: fs, db, step, sr, clarity: fs[1].prominence });

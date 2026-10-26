@@ -103,6 +103,72 @@ function levinson(r, order) {
   return a;
 }
 
+// ---- LPC 根的取法（2026-10-26）----
+// 包络找峰在 F1、F2 挨得近时会并成一个峰（乌 724 和 F1 482 只差 240 Hz，
+// 哦 895 和 F1 623 只差 270 Hz），根不会：两个共振峰始终是两对复根。
+function polyRoots(a) {
+  const n = a.length - 1;
+  const re = new Float64Array(n), im = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = 0.4 + 0.9 * i;
+    re[i] = Math.pow(0.9, i) * Math.cos(r * 1.7);
+    im[i] = Math.pow(0.9, i) * Math.sin(r * 1.7);
+  }
+  for (let it = 0; it < 300; it++) {
+    let worst = 0;
+    for (let i = 0; i < n; i++) {
+      let pr = 1, pi = 0;
+      for (let k = 1; k <= n; k++) {
+        const xr = pr * re[i] - pi * im[i] + a[k];
+        const xi = pr * im[i] + pi * re[i];
+        pr = xr; pi = xi;
+      }
+      let dr = 1, di = 0;
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue;
+        const xr = re[i] - re[j], xi = im[i] - im[j];
+        const nr = dr * xr - di * xi, ni = dr * xi + di * xr;
+        dr = nr; di = ni;
+      }
+      const den = dr * dr + di * di;
+      if (!(den > 1e-18)) continue;
+      const qr = (pr * dr + pi * di) / den, qi = (pi * dr - pr * di) / den;
+      re[i] -= qr; im[i] -= qi;
+      worst = Math.max(worst, Math.hypot(qr, qi));
+    }
+    if (worst < 1e-11) break;
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) out.push([re[i], im[i]]);
+  return out;
+}
+
+function formantsFromRoots(pre, sr, order) {
+  if (!order) order = Math.max(12, Math.round(sr / 1150));
+  const a = levinson(autocorr(pre, order), order);
+  if (!a) return null;
+  const cands = [];
+  for (const [r, i] of polyRoots(Array.from(a))) {
+    if (!(i > 0)) continue;
+    const mag = Math.hypot(r, i);
+    if (!(mag > 0 && mag < 1)) continue;
+    const f = Math.atan2(i, r) / (2 * Math.PI) * sr;
+    const bw = -0.5 * (sr / (2 * Math.PI)) * Math.log(mag);
+    if (f > 150 && f < Math.min(5200, sr / 2 - 100) && bw < 500) cands.push(f);
+  }
+  if (cands.length < 2) return null;
+  cands.sort((p, q) => p - q);
+  const out = [cands[0]];
+  for (const f of cands) {
+    if (f >= out[out.length - 1] + 150) {
+      out.push(f);
+      if (out.length >= 4) break;
+    }
+  }
+  if (out.length < 2 || out[0] > 1300) return null;
+  return out;
+}
+
 function lpcEnvelope(a, sampleRate, step) {
   const bins = Math.floor((sampleRate / 2) / step);
   const db = new Float64Array(bins + 1);
@@ -137,10 +203,11 @@ function analyseVoice(samples,sr){
  const seg=x.subarray(s,s+size),hp=pitchHPS(seg,rate,65,500); const lag=Math.round(rate/hp);let ab=0,aa=0,bb=0;for(let j=0;j+lag<seg.length;j++){ab+=seg[j]*seg[j+lag];aa+=seg[j]**2;bb+=seg[j+lag]**2;}const periodicity=ab/Math.sqrt(aa*bb);if(!(periodicity>=.12))continue;const p={hz:hp};voiced++;
  const pre=new Float64Array(size);let mean=0;for(const v of seg)mean+=v/size;
  for(let i=0;i<size;i++)pre[i]=((seg[i]-mean)-.97*((i?seg[i-1]:seg[i])-mean))*(.54-.46*Math.cos(2*Math.PI*i/(size-1)));
- const a=levinson(autocorr(pre,10),10);if(!a)continue;
+ const rf=formantsFromRoots(pre,rate);
+ const a=rf?null:levinson(autocorr(pre,10),10);if(!rf&&!a)continue;
  // 找峰两条约束（2026-10-26）：峰要有 >=1 dB 突出度；F2 优先取 2200 Hz 以下那个。
- const db=lpcEnvelope(a,rate,5), peaks=[];
- for(let k=36;k<800;k++){if(!(db[k]>db[k-1]&&db[k]>=db[k+1]))continue;
+ const db=rf?null:lpcEnvelope(a,rate,5), peaks=rf?[rf[0],rf[1]]:[];
+ if(!rf)for(let k=36;k<800;k++){if(!(db[k]>db[k-1]&&db[k]>=db[k+1]))continue;
   let lo=Infinity,hi=Infinity;
   for(let j=Math.max(36,k-50);j<k;j++)lo=Math.min(lo,db[j]);
   for(let j=k+1;j<=Math.min(800,k+50);j++)hi=Math.min(hi,db[j]);
