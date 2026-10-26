@@ -9,7 +9,7 @@
 <div class="layout"><section class="panel"><span class="step" id="step">准备 / 单个元音</span><div class="prompt" id="prompt"></div><p id="instruction"></p><label id="targetLabel">这次念什么 <select id="target"></select></label><label class="check" id="confirmLabel"><input type="checkbox" id="confirm"> 我只念了一种元音，没有念整句或复韵母</label><div class="actions"><button id="record" class="primary">开始录音</button><button id="stop" disabled>停止</button><button id="upload">打开音频</button><input type="file" id="file" accept="audio/*" hidden></div><div id="status" role="status" aria-live="polite">找个安静的地方，麦克风离嘴约一掌。</div><button id="next" hidden>保存这一项，念下一个 →</button><p class="foot">单元音录音 2.6 秒后自动停止；整句最多 20 秒。先轻吸气，开始后直接拖长韵母，不拖声母。不舒服就停下来。</p><details><summary>读数怎么理解？</summary><p class="muted">F1 大致反映舌头高低，F2 与舌头前后和嘴唇形状有关；F0 是音高。它们不能单独判定性别感。</p><p class="muted">F3 已移除：这套浏览器测量无法可靠给出它的数值。散布小也不代表没有系统误差；参考点不是合格线。</p></details></section>
 <section class="panel"><span class="step">测量 / 带着范围看数字</span><div id="result" class="readout"><h2>先留下一次声音</h2><p class="muted">这里会显示 F1、F2、F0，以及每项的 10–90% 范围。</p></div><div id="maparea"><div class="actions"><label>图上的参考 <select id="gender"><option value="f">女声组均值</option><option value="m">男声组均值</option></select></label></div><div class="legend">○ 文献均值　<span class="dot">● 本次测量</span>　浅色框：本次 10–90% 散布</div><svg id="map" viewBox="0 0 700 480" role="img" aria-label="元音图：横轴 F2 从左到右递减，纵轴 F1 从上到下递增"></svg><p class="muted legend" id="nearest">虚线只表示距离最近，不是在识别你念的字。</p></div><div id="sentencePlot" hidden></div></section></div>
 <section class="panel" id="history" hidden><h2>十个元音 · 各自的一次测量</h2><p class="muted">下一项由你手动开始；可以重录当前项，已保存的结果会留在这里。重开页面后清空。</p><div class="tablewrap"><table><thead><tr><th>元音</th><th>F1 中位 / 10–90%</th><th>F2 中位 / 10–90%</th><th>F0 中位 / 10–90%</th><th>有效帧</th><th>可信度</th></tr></thead><tbody id="historyRows"></tbody></table></div><button id="restart">重新走一轮（清空本轮）</button></section>
-<details class="panel"><summary>参考表与测量边界</summary><p>仅采用 README 收录的 Meng、Chen、Li（2006），PACLIC 20，280–286 页：212 名女声、126 名男声播音专业学生，第一声的均值。下面两列依次是 F1 / F2（Hz）。</p><p>播音训练、发音习惯、个人声道和测量方法都会造成差异，不能当作普通人的标准，更不能当作训练目标。整句没有对应的单元音均值。</p><div class="tablewrap"><table><thead><tr><th>韵母</th><th>音标 / 例字</th><th>女声组 F1 / F2</th><th>男声组 F1 / F2</th></tr></thead><tbody id="references"></tbody></table></div><p class="foot">算法：抗混叠重采样至 10 kHz，80 ms 窗、20 ms 步长，预加重后解 LPC 多项式的复根，只留带宽窄于 150 Hz 的极点（宽带极点是寄生峰），再按频率从低到高取前两个共振峰，不用目标元音约束结果；音高用谐波求和，仍可能有倍频误差。低周期性、静音、异常谱峰会被剔除。</p><p class="foot">10–90% 是帧间读数的散布，不是“真值有 80% 概率在这里”，也不是误差保证。相邻帧重叠，不是独立样本。可信度规则是保守的使用提醒，尚未经过临床或大样本人声校准。</p><p class="foot">仅当有效帧 ≥40、F1 散布 ≤120 Hz、F2 散布 ≤250 Hz、F0 散布 ≤20%，且周期性、爆音和分段检查通过，才允许参考对比；还需确认只念了一个元音。稳定的错峰仍可能漏检。</p></details><p class="foot">离线双击可使用音频导入；麦克风是否可用取决于浏览器权限。推荐桌面版现代浏览器。所有声音仅留在本页内存，关闭后清除。</p></main><script>
+<details class="panel"><summary>参考表与测量边界</summary><p>仅采用 README 收录的 Meng、Chen、Li（2006），PACLIC 20，280–286 页：212 名女声、126 名男声播音专业学生，第一声的均值。下面两列依次是 F1 / F2（Hz）。</p><p>播音训练、发音习惯、个人声道和测量方法都会造成差异，不能当作普通人的标准，更不能当作训练目标。整句没有对应的单元音均值。</p><div class="tablewrap"><table><thead><tr><th>韵母</th><th>音标 / 例字</th><th>女声组 F1 / F2</th><th>男声组 F1 / F2</th></tr></thead><tbody id="references"></tbody></table></div><p class="foot">算法：抗混叠重采样至 10 kHz，80 ms 窗、20 ms 步长，预加重后按采样率取 LPC 阶数（10 kHz 用 12 阶）解多项式复根，只留 200–5200 Hz、带宽窄于 150 Hz 的极点；F1/F2 在「F2 至少比 F1 高一半 F1 或 250 Hz」的配对里挑包络最高的一对（防止宽带宽的 F1 被劈开后误当 F2），再做 3.5 倍 MAD 帧级剔除，不用目标元音约束结果；音高用谐波求和，仍可能有倍频误差。低周期性、静音、异常谱峰会被剔除。</p><p class="foot">10–90% 是帧间读数的散布，不是“真值有 80% 概率在这里”，也不是误差保证。相邻帧重叠，不是独立样本。可信度规则是保守的使用提醒，尚未经过临床或大样本人声校准。</p><p class="foot">仅当有效帧 ≥40、F1 散布 ≤120 Hz、F2 散布 ≤250 Hz、F0 散布 ≤20%，且周期性、爆音和分段检查通过，才允许参考对比；还需确认只念了一个元音。稳定的错峰仍可能漏检。</p></details><p class="foot">离线双击可使用音频导入；麦克风是否可用取决于浏览器权限。推荐桌面版现代浏览器。所有声音仅留在本页内存，关闭后清除。</p></main><script>
 // ==== DSP BEGIN ====
 function fft(re, im) {
   const n = re.length;
@@ -144,6 +144,8 @@ function polyRoots(a) {
 }
 
 function formantsFromRoots(pre, sr, order) {
+  // 阶数跟着采样率走：16 kHz 用 14 阶，44.1/48 kHz 要用 38 阶左右才能把
+  // 0-3 kHz 的极点分得开，否则根全挤在低频、F1/F2 直接对不上。
   if (!order) order = Math.max(12, Math.round(sr / 1150));
   const a = levinson(autocorr(pre, order), order);
   if (!a) return null;
@@ -154,26 +156,37 @@ function formantsFromRoots(pre, sr, order) {
     if (!(mag > 0 && mag < 1)) continue;
     const f = Math.atan2(i, r) / (2 * Math.PI) * sr;
     const bw = -0.5 * (sr / (2 * Math.PI)) * Math.log(mag);
-    if (f > 150 && f < Math.min(5200, sr / 2 - 100)) cands.push([f, bw]);
+    if (f > 200 && f < Math.min(5200, sr / 2 - 100) && bw < 150) cands.push(f);
   }
-  // 真共振峰的极点很窄（带宽 7-80 Hz）；带宽二三百的那些是谱包络之间的
-  // 寄生极点（/i/ 在 10 kHz 下会被读成 F2 864，真值 2670）。先要窄的，
-  // 不够两个再放宽。
-  const loose = cands.filter(c => c[1] < 500).map(c => c[0]);
-  const tight = cands.filter(c => c[1] < 150).map(c => c[0]);
-  const pool = tight.length >= 2 ? tight : loose;
-  if (pool.length < 2) return null;
-  cands.length = 0;
-  cands.push(...pool);
+  if (cands.length < 2) return null;
   cands.sort((p, q) => p - q);
-  const out = [cands[0]];
+
+  // 选 F1/F2 不能贪心取“第一个之后隔开的那根”：/a/ 这种 F1 带宽很宽的元音，
+  // LPC 会把 F1 劈成两根（709 和 970），贪心就把 970 当 F2，真 F2 1300 被跳过。
+  // 改成在满足“F2 至少比 F1 高 max(250, F1/2)”的所有配对里，挑包络高的那一对。
+  const db = lpcEnvelope(a, sr, 5);
+  const at = (f) => {
+    const k = Math.round(f / 5);
+    return (k > 0 && k < db.length) ? db[k] : -999;
+  };
+  let best = null;
+  for (const f1 of cands) {
+    if (f1 > 1200) break;
+    const need = Math.max(250, f1 / 2);
+    for (const f2 of cands) {
+      if (f2 - f1 < need || f2 > 3500) continue;
+      const score = at(f1 + 5) + at(f2 + 5);
+      if (!best || score > best.score) best = { f1, f2, score };
+    }
+  }
+  if (!best) return null;
+  const out = [best.f1, best.f2];
   for (const f of cands) {
-    if (f >= out[out.length - 1] + 150) {
+    if (f - out[out.length - 1] >= 200) {
       out.push(f);
       if (out.length >= 4) break;
     }
   }
-  if (out.length < 2 || out[0] > 1300) return null;
   return out;
 }
 
@@ -229,6 +242,17 @@ function analyseVoice(samples,sr){
  const f2=low.length?low[0]:above[0];
  frames.push({t:s/rate,F1:f1,F2:f2,F0:p.hz,periodicity});
  }
+ const framesAll=frames.length;
+ // 帧级 MAD 剔除：先取中位数，去掉偏离超过 3.5 倍 MAD 的整对读数。
+ // 尺度下限取 10 Hz，避免极窄分布时把正常抖动也剔掉。
+ const madScale=v=>{const s=v.slice().sort((a,b)=>a-b),m=quant(s,.5);
+  const d=s.map(x=>Math.abs(x-m));return Math.max(1.4826*quant(d,.5),10);};
+ if(frames.length>=8){
+  const m1=quant(frames.map(f=>f.F1),.5),m2=quant(frames.map(f=>f.F2),.5);
+  const s1=madScale(frames.map(f=>f.F1)),s2=madScale(frames.map(f=>f.F2));
+  const kept=frames.filter(f=>Math.abs(f.F1-m1)<=3.5*s1&&Math.abs(f.F2-m2)<=3.5*s2);
+  if(kept.length>=5){frames.length=0;for(const f of kept)frames.push(f);}
+ }
  const stat=k=>{const v=frames.map(f=>f[k]);return {mid:quant(v,.5),lo:quant(v,.1),hi:quant(v,.9)};};
  let clipped=0;for(const v of samples)if(Math.abs(v)>=.99)clipped++;
  const F1=stat('F1'),F2=stat('F2'),F0=stat('F0'), reasons=[];
@@ -238,7 +262,7 @@ function analyseVoice(samples,sr){
  if(quant(frames.map(f=>f.periodicity),.5)<.35)reasons.push('周期性偏弱，气声或噪声可能影响读数');
  if(clipped/samples.length>.001)reasons.push('录音爆音，请离麦克风远一点');
  let runs=0,last=-1;for(const f of frames){if(last<0||f.t-last>.2)runs++;last=f.t;}if(runs>1)reasons.push('检测到多段声音，请只保留一次持续元音');
- return {reasons,comparable:reasons.length===0,ok:frames.length>=5,frames:frames.length,total,voiced,duration:x.length/rate,F1,F2,F0,track:frames};
+ return {reasons,comparable:reasons.length===0,ok:frames.length>=5,frames:frames.length,framesAll,total,voiced,duration:x.length/rate,F1,F2,F0,track:frames};
 }
 
 
