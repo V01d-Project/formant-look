@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>听见自己的位置 · 元音测量</title>
+<style>
+:root{color-scheme:light;--ink:#233c3c;--muted:#607371;--teal:#17685d;--line:#d9e3dd;--paper:#fffef9;--warm:#ac663e}*{box-sizing:border-box}body{margin:0;background:#f2f4ed;color:var(--ink);font:16px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1180px;margin:auto;padding:40px 28px 70px}h1{font-size:clamp(27px,4vw,42px);line-height:1.25;letter-spacing:-1px;margin:12px 0}h2{font-size:21px;margin:0 0 14px}p{margin:8px 0 16px}.eyebrow{font-size:12px;letter-spacing:3px;color:var(--teal);font-weight:700}.intro{max-width:760px;color:var(--muted)}.tag{display:inline-block;border:1px solid var(--line);border-radius:30px;padding:3px 12px;font-size:12px}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:28px 0 20px}.modes button{text-align:left;background:transparent;padding:17px}.modes strong,.modes small{display:block}.modes small{font-size:13px;font-weight:400;margin-top:5px;color:var(--muted)}button,select,input{font:inherit}button,select{border:1px solid var(--line);border-radius:12px;padding:10px 15px;background:var(--paper);color:var(--ink)}button{cursor:pointer}button:hover{border-color:var(--teal)}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #dc9a5b;outline-offset:3px}button:disabled{opacity:.45;cursor:default}.modes button[aria-selected=true]{background:var(--teal);color:white;border-color:var(--teal)}.modes button[aria-selected=true] small{color:#d9eee7}.layout{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}.panel{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:24px}.step{color:var(--warm);font-size:12px;font-weight:700;letter-spacing:2px}.prompt{font-size:38px;line-height:1.3;margin:16px 0 10px}.muted,small{color:var(--muted)}.actions{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}.primary{background:var(--teal);color:white;border-color:var(--teal)}#status{min-height:54px;font-size:14px;background:#eef3eb;padding:12px;border-radius:10px}label{display:block;margin:12px 0}select{max-width:100%}.check{font-size:14px}.check input{width:18px;height:18px;vertical-align:middle}.readout{margin-top:20px}.badge{display:inline-block;background:#e5efe6;padding:4px 10px;border-radius:6px;font-size:13px}.bad{background:#fff0df;color:#8d481e}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.metric{border-top:2px solid #bfd3c6;padding-top:10px}.value{font-size:27px;font-variant-numeric:tabular-nums}.metric small{display:block;font-size:12px}svg{width:100%;height:auto;display:block}#map{margin-top:12px}.legend{font-size:13px}.dot{color:var(--warm)}.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;white-space:nowrap}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;font-variant-numeric:tabular-nums}th{color:var(--muted);font-weight:500}details{margin-top:22px}summary{cursor:pointer;font-weight:600}.foot{font-size:13px;color:var(--muted);margin-top:24px}#history{margin-top:20px}#next{margin-top:12px}a{color:var(--teal)}[hidden]{display:none!important}@media(max-width:850px){.layout{grid-template-columns:1fr}.modes{gap:6px}.modes button{padding:12px 9px}.panel{padding:18px}main{padding:24px 14px}.metrics{gap:6px}.value{font-size:24px}}
+</style>
+<main><span class="eyebrow">VOICE PRACTICE / 元音练习</span><h1>听见自己的位置。</h1><p class="intro">念一个元音，看看声音的共鸣落在哪里。把音高和音色分开看，也把每次测量的不确定放在眼前。这里没有“够不够女性化”的分数。</p><span class="tag">本地计算 · 不上传录音 · 可离线使用</span>
+<div class="modes" role="tablist" aria-label="测量模式"><button role="tab" data-mode="single" aria-selected="true"><strong>① 单个元音</strong><small>拖长 2 秒 · 和参考位置看一看</small></button><button role="tab" data-mode="guide" aria-selected="false"><strong>② 十个逐个念</strong><small>每次只念一个 · 并排看结果</small></button><button role="tab" data-mode="sentence" aria-selected="false"><strong>③ 整句说话</strong><small>看范围和变化 · 不对参考值</small></button></div>
+<div class="layout"><section class="panel"><span class="step" id="step">准备 / 单个元音</span><div class="prompt" id="prompt"></div><p id="instruction"></p><label id="targetLabel">这次念什么 <select id="target"></select></label><label class="check" id="confirmLabel"><input type="checkbox" id="confirm"> 我只念了一种元音，没有念整句或复韵母</label><div class="actions"><button id="record" class="primary">开始录音</button><button id="stop" disabled>停止</button><button id="upload">打开音频</button><input type="file" id="file" accept="audio/*" hidden></div><div id="status" role="status" aria-live="polite">找个安静的地方，麦克风离嘴约一掌。</div><button id="next" hidden>保存这一项，念下一个 →</button><p class="foot">单元音录音 2.6 秒后自动停止；整句最多 20 秒。先轻吸气，开始后直接拖长韵母，不拖声母。不舒服就停下来。</p><details><summary>读数怎么理解？</summary><p class="muted">F1 大致反映舌头高低，F2 与舌头前后和嘴唇形状有关；F0 是音高。它们不能单独判定性别感。</p><p class="muted">F3 已移除：这套浏览器测量无法可靠给出它的数值。散布小也不代表没有系统误差；参考点不是合格线。</p></details></section>
+<section class="panel"><span class="step">测量 / 带着范围看数字</span><div id="result" class="readout"><h2>先留下一次声音</h2><p class="muted">这里会显示 F1、F2、F0，以及每项的 10–90% 范围。</p></div><div id="maparea"><div class="actions"><label>图上的参考 <select id="gender"><option value="f">女声组均值</option><option value="m">男声组均值</option></select></label></div><div class="legend">○ 文献均值　<span class="dot">● 本次测量</span>　浅色框：本次 10–90% 散布</div><svg id="map" viewBox="0 0 700 480" role="img" aria-label="元音图：横轴 F2 从左到右递减，纵轴 F1 从上到下递增"></svg><p class="muted legend" id="nearest">虚线只表示距离最近，不是在识别你念的字。</p></div><div id="sentencePlot" hidden></div></section></div>
+<section class="panel" id="history" hidden><h2>十个元音 · 各自的一次测量</h2><p class="muted">下一项由你手动开始；可以重录当前项，已保存的结果会留在这里。重开页面后清空。</p><div class="tablewrap"><table><thead><tr><th>元音</th><th>F1 中位 / 10–90%</th><th>F2 中位 / 10–90%</th><th>F0 中位 / 10–90%</th><th>有效帧</th><th>可信度</th></tr></thead><tbody id="historyRows"></tbody></table></div><button id="restart">重新走一轮（清空本轮）</button></section>
+<details class="panel"><summary>参考表与测量边界</summary><p>仅采用 README 收录的 Meng、Chen、Li（2006），PACLIC 20，280–286 页：212 名女声、126 名男声播音专业学生，第一声的均值。下面两列依次是 F1 / F2（Hz）。</p><p>播音训练、发音习惯、个人声道和测量方法都会造成差异，不能当作普通人的标准，更不能当作训练目标。整句没有对应的单元音均值。</p><div class="tablewrap"><table><thead><tr><th>韵母</th><th>音标 / 例字</th><th>女声组 F1 / F2</th><th>男声组 F1 / F2</th></tr></thead><tbody id="references"></tbody></table></div><p class="foot">算法：抗混叠重采样至 10 kHz，80 ms 窗、20 ms 步长，预加重后 10 阶 LPC，从低到高取前两个谱峰，不用目标元音约束结果；音高用谐波求和，仍可能有倍频误差。低周期性、静音、异常谱峰会被剔除。</p><p class="foot">10–90% 是帧间读数的散布，不是“真值有 80% 概率在这里”，也不是误差保证。相邻帧重叠，不是独立样本。可信度规则是保守的使用提醒，尚未经过临床或大样本人声校准。</p><p class="foot">仅当有效帧 ≥40、F1 散布 ≤120 Hz、F2 散布 ≤250 Hz、F0 散布 ≤20%，且周期性、爆音和分段检查通过，才允许参考对比；还需确认只念了一个元音。稳定的错峰仍可能漏检。</p></details><p class="foot">离线双击可使用音频导入；麦克风是否可用取决于浏览器权限。推荐桌面版现代浏览器。所有声音仅留在本页内存，关闭后清除。</p></main><script>
+// ==== DSP BEGIN ====
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { const tr = re[i]; re[i] = re[j]; re[j] = tr; const ti = im[i]; im[i] = im[j]; im[j] = ti; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ur = re[i + k], ui = im[i + k];
+        const vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
+        const vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+        re[i + k] = ur + vr; im[i + k] = ui + vi;
+        re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
+        const ncr = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr; cr = ncr;
+      }
+    }
+  }
+}
+
+function pitchHPS(x, sampleRate, fmin, fmax) {
+  // 谐波求和（HPS）：对每个候选 F0 取前 6 个谐波位置的谱值求和，取最大。
+  // 比自相关/差分函数抗倍频错误：低八度的候选只能对上隔一个的谐波，分更低。
+  const N = Math.min(2048, 1 << Math.floor(Math.log2(Math.max(256, x.length))));
+  if (x.length < 256) return 0;
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const v = i < x.length ? x[i] : 0;
+    re[i] = v * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)));
+  }
+  fft(re, im);
+  const half = N >> 1;
+  const mag = new Float64Array(half);
+  let maxm = 0;
+  for (let k = 1; k < half; k++) { mag[k] = Math.hypot(re[k], im[k]); if (mag[k] > maxm) maxm = mag[k]; }
+  if (!(maxm > 0)) return 0;
+  const logmag = new Float64Array(half);
+  const floor = maxm * 1e-5;
+  for (let k = 1; k < half; k++) logmag[k] = Math.log(mag[k] + floor);
+  const binHz = sampleRate / N;
+  let best = 0, bestScore = -Infinity;
+  for (let f0 = fmin; f0 <= fmax; f0 += 0.25) {
+    let score = 0, used = 0;
+    for (let h = 1; h <= 8; h++) {
+      const f = f0 * h;
+      if (f >= sampleRate / 2 - 40) break;
+      const pos = f / binHz;
+      const i0 = Math.floor(pos), fr = pos - i0;
+      if (i0 + 1 >= half) break;
+      score += (logmag[i0] * (1 - fr) + logmag[i0 + 1] * fr) * (1 / h); // 高次谐波权重递降
+      used++;
+    }
+    if (used >= 3 && score > bestScore) { bestScore = score; best = f0; }
+  }
+  return best;
+}
+
+function autocorr(x, order) {
+  const r = new Float64Array(order + 1);
+  for (let k = 0; k <= order; k++) {
+    let s = 0;
+    for (let i = 0; i + k < x.length; i++) s += x[i] * x[i + k];
+    r[k] = s;
+  }
+  return r;
+}
+
+function levinson(r, order) {
+  const a = new Float64Array(order + 1);
+  const tmp = new Float64Array(order + 1);
+  a[0] = 1;
+  let err = r[0];
+  if (!(err > 0)) return null;
+  for (let i = 1; i <= order; i++) {
+    let acc = r[i];
+    for (let j = 1; j < i; j++) acc += a[j] * r[i - j];
+    const k = -acc / err;
+    for (let j = 0; j <= i; j++) tmp[j] = a[j];
+    for (let j = 1; j < i; j++) a[j] = tmp[j] + k * tmp[i - j];
+    a[i] = k;
+    err *= 1 - k * k;
+    if (!(err > 0)) return null;
+  }
+  return a;
+}
+
+function lpcEnvelope(a, sampleRate, step) {
+  const bins = Math.floor((sampleRate / 2) / step);
+  const db = new Float64Array(bins + 1);
+  for (let k = 0; k <= bins; k++) {
+    const w = 2 * Math.PI * (k * step) / sampleRate;
+    const cw = Math.cos(w), sw = Math.sin(w);
+    let vr = a[a.length - 1], vi = 0;
+    for (let i = a.length - 2; i >= 0; i--) {
+      const nr = vr * cw + vi * sw + a[i];
+      const ni = -vr * sw + vi * cw;
+      vr = nr; vi = ni;
+    }
+    db[k] = -20 * Math.log10(Math.max(1e-9, Math.hypot(vr, vi)));
+  }
+  return db;
+}
+
+
+function resample(x, sr) {
+ const rate=10000, y=new Float64Array(Math.floor(x.length*rate/sr));
+ if(sr===rate)return x;
+ const fc=Math.min(.45,.45*rate/sr), half=48;
+ for(let i=0;i<y.length;i++){const t=i*sr/rate,c=Math.floor(t);let s=0,w=0;
+ for(let k=c-half;k<=c+half;k++){if(k<0||k>=x.length)continue;const d=k-t;const h=(Math.abs(d)<1e-9?2*fc:Math.sin(2*Math.PI*fc*d)/(Math.PI*d))*(.5+.5*Math.cos(Math.PI*d/(half+1)));s+=x[k]*h;w+=h;}y[i]=s/w; }return y;
+}
+function quant(v,p){if(!v.length)return null;v=v.slice().sort((a,b)=>a-b);return v[Math.round((v.length-1)*p)];}
+function analyseVoice(samples,sr){
+ const x=resample(samples,sr), rate=10000,size=800,hop=200, frames=[];let peak=0, energies=[];
+ for(let s=0;s+size<=x.length;s+=hop){let e=0;for(let i=0;i<size;i++)e+=x[s+i]**2;const rms=Math.sqrt(e/size);energies.push(rms);peak=Math.max(peak,rms);}
+ let total=0, voiced=0;
+ for(let s=0;s+size<=x.length;s+=hop){const rms=energies[total++];if(rms<Math.max(.001,peak*.12))continue;
+ const seg=x.subarray(s,s+size),hp=pitchHPS(seg,rate,65,500); const lag=Math.round(rate/hp);let ab=0,aa=0,bb=0;for(let j=0;j+lag<seg.length;j++){ab+=seg[j]*seg[j+lag];aa+=seg[j]**2;bb+=seg[j+lag]**2;}const periodicity=ab/Math.sqrt(aa*bb);if(!(periodicity>=.12))continue;const p={hz:hp};voiced++;
+ const pre=new Float64Array(size);let mean=0;for(const v of seg)mean+=v/size;
+ for(let i=0;i<size;i++)pre[i]=((seg[i]-mean)-.97*((i?seg[i-1]:seg[i])-mean))*(.54-.46*Math.cos(2*Math.PI*i/(size-1)));
+ const a=levinson(autocorr(pre,10),10);if(!a)continue;
+ const db=lpcEnvelope(a,rate,5), peaks=[];
+ for(let k=30;k<700;k++)if(db[k]>db[k-1]&&db[k]>=db[k+1]){const den=db[k-1]-2*db[k]+db[k+1];peaks.push((k+(den?(db[k-1]-db[k+1])/(2*den):0))*5);}
+ if(peaks.length<2||peaks[0]>1200||peaks[1]-peaks[0]<150)continue;
+ frames.push({t:s/rate,F1:peaks[0],F2:peaks[1],F0:p.hz,periodicity});
+ }
+ const stat=k=>{const v=frames.map(f=>f[k]);return {mid:quant(v,.5),lo:quant(v,.1),hi:quant(v,.9)};};
+ let clipped=0;for(const v of samples)if(Math.abs(v)>=.99)clipped++;
+ const F1=stat('F1'),F2=stat('F2'),F0=stat('F0'), reasons=[];
+ if(frames.length<40)reasons.push('可用声音不足 0.8 秒，请把元音拖长');
+ if(F1.hi-F1.lo>120||F2.hi-F2.lo>250)reasons.push('音色散布太大，可能换了元音或找峰跳动');
+ if(F0.hi-F0.lo>F0.mid*.2)reasons.push('音高变化较大，或出现倍频误判');
+ if(quant(frames.map(f=>f.periodicity),.5)<.35)reasons.push('周期性偏弱，气声或噪声可能影响读数');
+ if(clipped/samples.length>.001)reasons.push('录音爆音，请离麦克风远一点');
+ let runs=0,last=-1;for(const f of frames){if(last<0||f.t-last>.2)runs++;last=f.t;}if(runs>1)reasons.push('检测到多段声音，请只保留一次持续元音');
+ return {reasons,comparable:reasons.length===0,ok:frames.length>=5,frames:frames.length,total,voiced,duration:x.length/rate,F1,F2,F0,track:frames};
+}
+
+
+
+// ==== DSP END ====
+const REF = [
+  { id: 'a',  py: 'a',   ipa: 'a',  ch: '妈 mā',   tip: '张嘴，舌放低',                     f: [952, 1371, 3444], m: [795, 1168, 2945] },
+  { id: 'o',  py: 'o',   ipa: 'o',  ch: '波 bō',   tip: '嘴唇收圆，舌后缩',                 f: [654, 947, 3410],  m: [532, 817, 2949] },
+  { id: 'e',  py: 'e',   ipa: 'ɤ',  ch: '哥 gē',   tip: '嘴半开，舌后部略抬，唇不圆',       f: [622, 1334, 3358], m: [501, 1163, 2736] },
+  { id: 'ê',  py: 'ê',   ipa: 'ɛ',  ch: '诶（叹词）', tip: '嘴半开、舌前部略抬，只作叹词用', f: [856, 2119, 3159], m: [705, 1789, 2656] },
+  { id: 'i',  py: 'i',   ipa: 'i',  ch: '衣 yī',   tip: '嘴角向两边，舌面前部抬高',         f: [311, 2871, 3882], m: [279, 2240, 3168] },
+  { id: 'u',  py: 'u',   ipa: 'u',  ch: '乌 wū',   tip: '嘴唇撮圆，舌后缩',                 f: [354, 762, 3432],  m: [342, 701, 2800] },
+  { id: 'ü',  py: 'ü',   ipa: 'y',  ch: '迂 yū',   tip: '撮圆嘴的同时舌面前部抬高',         f: [305, 2411, 2813], m: [280, 1992, 2331] },
+  { id: 'zi', py: '-i',  ipa: 'ɿ',  ch: '资 zī',   tip: 'zi ci si 的韵母，舌尖前靠近齿背',  f: [399, 1762, 3271], m: [355, 1410, 2702] },
+  { id: 'zhi',py: '-i',  ipa: 'ʅ',  ch: '知 zhī',  tip: 'zhi chi shi ri 的韵母，舌尖后卷',  f: [416, 2092, 2805], m: [351, 1719, 2316] },
+  { id: 'e2', py: 'e（轻）', ipa: 'ə', ch: '的 de', tip: '轻声里的央元音，口形最松',        f: [656, 1370, 3376], m: [525, 1179, 2735] }
+];
+
+const $=id=>document.getElementById(id),round=v=>v==null?'—':Math.round(v),span=s=>`${round(s.lo)}–${round(s.hi)}`;
+let mode='single',index=0,last=null,saved={},busy=false,ac=null,capture=null,timer=null;
+REF.forEach((r,i)=>{$('target').add(new Option(`${r.py} [${r.ipa}] · ${r.ch}`,i));});
+$('references').innerHTML=REF.map(r=>`<tr><td>${r.py}</td><td>[${r.ipa}] ${r.ch}</td><td>${r.f.slice(0,2).join(' / ')}</td><td>${r.m.slice(0,2).join(' / ')}</td></tr>`).join('');
+function status(s){$('status').textContent=s;}
+function controls(){for(const e of document.querySelectorAll('.modes button,#target,#upload,#restart,#next'))e.disabled=busy;$('record').disabled=busy;$('stop').disabled=!capture;}
+function setup(){
+ const sentence=mode==='sentence',r=REF[index];$('targetLabel').hidden=mode!=='single';$('confirmLabel').hidden=sentence;$('maparea').hidden=sentence;$('sentencePlot').hidden=!sentence;$('history').hidden=mode!=='guide';$('next').hidden=true;
+ $('step').textContent=sentence?'准备 / 整句说话':mode==='guide'?`引导 / 第 ${index+1} 项，共 10 项`:'准备 / 单个元音';
+ $('prompt').textContent=sentence?'说一句熟悉的话':`${r.py} [${r.ipa}]`;
+ $('instruction').textContent=sentence?'按平常的方式说。这一模式只看范围与稳定性，不与任何单元音参考点比较。':`像「${r.ch}」里的韵母，保持同一种口型拖长约 2 秒。${r.tip}。`;
+ $('result').innerHTML='<h2>准备好就开始</h2><p class="muted">本次结果会保留完整散布，不会只给一个看似精确的数。</p>';last=null;$('sentencePlot').innerHTML='';drawMap();renderHistory();
+}
+for(const b of document.querySelectorAll('[data-mode]'))b.onclick=()=>{mode=b.dataset.mode;index=0;$('target').value='0';$('confirm').checked=false;for(const a of document.querySelectorAll('[data-mode]'))a.setAttribute('aria-selected',String(a===b));setup();};
+$('target').onchange=()=>{index=Number($('target').value);$('confirm').checked=false;setup();};
+function canCompare(){return last&&last.ok&&last.comparable&&$('confirm').checked&&mode!=='sentence';}
+function render(){
+ if(!last)return;const r=last, sentence=mode==='sentence',reasons=[...r.reasons];if(!sentence&&!$('confirm').checked)reasons.push('尚未确认只念了一种元音');
+ const good=canCompare(),label=sentence?('整句 · '+(r.F1.hi-r.F1.lo>120||r.F2.hi-r.F2.lo>250?'音色变化较大':'音色读数较集中')+' · 不可用于参考对比'):good?'较稳定 · 可谨慎对比':'不可用于对比';
+ $('result').innerHTML=`<span class="badge ${good?'':'bad'}">${label}</span><div class="metrics">${['F1','F2','F0'].map(k=>`<div class="metric"><small>${k==='F0'?'F0 · 音高':k+' · 共鸣'}</small><div class="value">${sentence?span(r[k]):round(r[k].mid)}<small>Hz${sentence?' · 10–90%':' · 中位数'}</small></div><small>${sentence?'散布宽度 '+round(r[k].hi-r[k].lo)+' Hz':'10–90%：'+span(r[k])+' Hz'}</small></div>`).join('')}</div><p class="legend">有效帧 ${r.frames} / ${r.total}；录音 ${r.duration.toFixed(2)} 秒。${r.ok?'':'可用声音不足，读数仅供排查。'}</p><p class="muted">${sentence?'范围越宽，表示说话中的变化或测量跳动越大，不代表训练好坏。':good?'这次读数较集中，仍可能有系统偏差。建议同一个元音再测一次。':reasons.join('；')+'。请重录后再比。'}</p>`;
+ $('next').hidden=mode!=='guide'||!r.ok;$('next').textContent=index===9?'保存最后一项，完成本轮':'保存这一项，念下一个 →';
+ if(sentence)drawTrack();else drawMap();
+}
+$('confirm').onchange=render;$('gender').onchange=drawMap;
+function drawMap(){
+ const w=700,h=480,L=68,R=40,T=45,B=65;
+ // Both ticks and data use these exact transforms. F2 decreases to the right; F1 increases downward.
+ const points=last&&last.ok?last.track:[],f2lo=Math.min(500,...points.map(p=>p.F2-100)),f2hi=Math.max(3300,...points.map(p=>p.F2+100)),f1lo=Math.min(150,...points.map(p=>p.F1-70)),f1hi=Math.max(1150,...points.map(p=>p.F1+70));
+ const x=f=>L+(f2hi-f)/(f2hi-f2lo)*(w-L-R),y=f=>T+(f-f1lo)/(f1hi-f1lo)*(h-T-B);
+ let a='<title>元音图：左侧舌前，上方舌高；虚线连接最近的文献均值。</title>';
+ for(let f=500;f<=f2hi;f+=500)if(f>=f2lo)a+=`<path d="M${x(f)} ${T}V${h-B}" stroke="#dce5dd"/><text x="${x(f)}" y="${h-B+24}" text-anchor="middle">${f}</text>`;
+ for(let f=200;f<=f1hi;f+=200)if(f>=f1lo)a+=`<path d="M${L} ${y(f)}H${w-R}" stroke="#dce5dd"/><text x="${L-10}" y="${y(f)+5}" text-anchor="end">${f}</text>`;
+ const refs=REF.map(r=>({...r,v:r[$('gender').value]}));
+ let nearest=null;if(last&&last.ok){const r=last;nearest=refs.reduce((best,q)=>Math.hypot(Math.log(r.F1.mid/q.v[0]),Math.log(r.F2.mid/q.v[1]))<Math.hypot(Math.log(r.F1.mid/best.v[0]),Math.log(r.F2.mid/best.v[1]))?q:best,refs[0]);
+ a+=`<rect x="${x(r.F2.hi)}" y="${y(r.F1.lo)}" width="${x(r.F2.lo)-x(r.F2.hi)}" height="${y(r.F1.hi)-y(r.F1.lo)}" fill="#c8854930" stroke="#ad663e"/><path d="M${x(r.F2.mid)} ${y(r.F1.mid)}L${x(nearest.v[1])} ${y(nearest.v[0])}" stroke="#ac663e" stroke-dasharray="5 5"/><circle cx="${x(r.F2.mid)}" cy="${y(r.F1.mid)}" r="7" fill="#ac663e"/><text x="${x(r.F2.mid)+10}" y="${y(r.F1.mid)-12}" fill="#ac663e">本次${canCompare()?'':'（不可对比）'}</text>`;}
+ const offsets=[[12,0],[12,-5],[12,-12],[12,3],[12,-12],[12,5],[-52,5],[12,2],[12,2],[12,18]];
+ refs.forEach((r,i)=>{const [dx,dy]=offsets[i];a+=`<circle cx="${x(r.v[1])}" cy="${y(r.v[0])}" r="5" fill="#fffef9" stroke="#17685d" stroke-width="2"/><text x="${x(r.v[1])+dx}" y="${y(r.v[0])+dy}" fill="#17685d">${r.id==='zi'?'资 -i':r.id==='zhi'?'知 -i':r.py}</text>`;});
+ a+=`<text x="${L}" y="22">F1 (Hz) · 上＝舌高</text><text x="${L}" y="${h-12}">← 舌前　F2 (Hz)　舌后 →</text>`;
+ $('map').innerHTML=`<g font-family="system-ui,sans-serif" font-size="14" fill="#607371">${a}</g>`;
+ $('nearest').textContent=nearest?(canCompare()?`几何最近：${nearest.py} [${nearest.ipa}]；与所念「${REF[index].py}」均值的差：F1 ${Math.round(last.F1.mid-REF[index][$('gender').value][0])} Hz，F2 ${Math.round(last.F2.mid-REF[index][$('gender').value][1])} Hz。`:'当前不可用于对比，虚线仅帮助检查读数位置。')+' 最近点按 F1/F2 的对数相对距离计算，不是在识别发音。':'十个圆点均来自文献，均值没有画成“正常范围”。';
+}
+function drawTrack(){
+ const r=last;if(!r.ok){$('sentencePlot').textContent='可用帧太少，暂时画不出变化。';return;}
+ let s='<h2>这句话里的变化</h2><p class="legend">每一行有自己的纵轴；点之间不跨静音连线。</p>';
+ for(const [k,color] of [['F1','#17685d'],['F2','#ac663e'],['F0','#626ca3']]){const min=Math.min(...r.track.map(f=>f[k]))*.85,max=Math.max(...r.track.map(f=>f[k]))*1.15,xx=t=>55+t/r.duration*575,yy=v=>105-(v-min)/(max-min||1)*75;s+=`<svg viewBox="0 0 700 140" role="img" aria-label="${k} 随时间变化"><text x="5" y="18" fill="${color}">${k} / Hz</text><text x="5" y="46" font-size="12">${round(max)}</text><text x="5" y="108" font-size="12">${round(min)}</text><path d="M55 30V110H640" stroke="#d9e3dd" fill="none"/>${r.track.map(f=>`<circle cx="${xx(f.t)}" cy="${yy(f[k])}" r="2" fill="${color}"/>`).join('')}<text x="55" y="133" font-size="12">0 秒</text><text x="590" y="133" font-size="12">${r.duration.toFixed(1)} 秒</text></svg>`;} $('sentencePlot').innerHTML=s;
+}
+function renderHistory(){ $('historyRows').innerHTML=REF.map((ref,i)=>{const r=saved[i];return `<tr><td>${ref.py} [${ref.ipa}]</td>${['F1','F2','F0'].map(k=>`<td>${r?round(r[k].mid)+' / '+span(r[k]):'待测'}</td>`).join('')}<td>${r?r.frames:'—'}</td><td>${r?(r.approved?'较稳定，可谨慎对比':'不可用于对比'):'—'}</td></tr>`;}).join('');}
+$('next').onclick=()=>{saved[index]={...last,approved:canCompare()};renderHistory();if(index<9){index++;$('confirm').checked=false;setup();status('上一项已保存。准备好了，再点开始录音。');}else{$('next').hidden=true;status('十项已完成。可以在下方并排查看；不可对比的项目请单独重测。');}};
+$('restart').onclick=()=>{saved={};index=0;$('confirm').checked=false;setup();};
+async function context(){if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')await ac.resume();return ac;}
+async function processSamples(samples,sr){status('正在本地分析…');await new Promise(resolve=>setTimeout(resolve,30));try{last=analyseVoice(samples,sr);render();status(last.ok?'测量完成。请先看可信度，再看位置。':'声音不足，或没有找到两个可用谱峰。请拖长同一个元音重新录。');}catch(e){status('分析失败：'+e.message);}finally{busy=false;controls();}}
+$('record').onclick=async()=>{
+ busy=true;controls();let stream=null;
+ try{if(!navigator.mediaDevices?.getUserMedia)throw Error('当前浏览器不支持本地麦克风，请使用“打开音频”');stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});const ctx=await context(),src=ctx.createMediaStreamSource(stream),chunks=[],mute=ctx.createGain();mute.gain.value=0;let node,url;
+ try{if(!ctx.audioWorklet)throw Error('no worklet');url=URL.createObjectURL(new Blob([`class Capture extends AudioWorkletProcessor{process(inputs){if(inputs[0]?.[0])this.port.postMessage(inputs[0][0].slice());return true;}}registerProcessor('local-capture',Capture);`],{type:'text/javascript'}));await ctx.audioWorklet.addModule(url);node=new AudioWorkletNode(ctx,'local-capture');node.port.onmessage=e=>chunks.push(e.data);}catch(e){node=ctx.createScriptProcessor(2048,1,1);node.onaudioprocess=e=>chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));}finally{if(url)URL.revokeObjectURL(url);}
+ src.connect(node);node.connect(mute);mute.connect(ctx.destination);capture={stream,src,node,mute,chunks,sr:ctx.sampleRate};controls();const start=performance.now(),limit=mode==='sentence'?20:2.6;status('正在录音，请开始念…');timer=setInterval(()=>{const t=(performance.now()-start)/1000;status(`正在录音 ${t.toFixed(1)} / ${limit} 秒`);if(t>=limit)stopCapture();},100);
+ }catch(e){stream?.getTracks().forEach(t=>t.stop());busy=false;controls();status('打开麦克风失败：'+e.message+'。也可以导入录好的音频。');}
+};
+function stopCapture(){if(!capture)return;clearInterval(timer);const c=capture;capture=null;c.stream.getTracks().forEach(t=>t.stop());c.src.disconnect();c.node.disconnect();c.mute.disconnect();if(c.node.port){c.node.port.onmessage=null;c.node.port.close();}else c.node.onaudioprocess=null;controls();const n=c.chunks.reduce((s,a)=>s+a.length,0),samples=new Float32Array(n);let off=0;for(const a of c.chunks){samples.set(a,off);off+=a.length;}processSamples(samples,c.sr);}
+$('stop').onclick=stopCapture;$('upload').onclick=()=>$('file').click();
+$('file').onchange=async e=>{const file=e.target.files[0];if(!file)return;busy=true;controls();status('正在读取音频…');try{const ctx=await context(),audio=await ctx.decodeAudioData(await file.arrayBuffer());if(audio.duration>30)throw Error('文件超过 30 秒，请先截取需要测量的片段');const samples=new Float32Array(audio.length);for(let ch=0;ch<audio.numberOfChannels;ch++){const x=audio.getChannelData(ch);for(let i=0;i<x.length;i++)samples[i]+=x[i]/audio.numberOfChannels;}await processSamples(samples,audio.sampleRate);}catch(err){busy=false;controls();status('读取失败：'+err.message);}finally{e.target.value='';}};
+window.addEventListener('pagehide',()=>{if(capture)capture.stream.getTracks().forEach(t=>t.stop());});setup();
+</script></html>
