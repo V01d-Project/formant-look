@@ -154,9 +154,17 @@ function formantsFromRoots(pre, sr, order) {
     if (!(mag > 0 && mag < 1)) continue;
     const f = Math.atan2(i, r) / (2 * Math.PI) * sr;
     const bw = -0.5 * (sr / (2 * Math.PI)) * Math.log(mag);
-    if (f > 150 && f < Math.min(5200, sr / 2 - 100) && bw < 500) cands.push(f);
+    if (f > 150 && f < Math.min(5200, sr / 2 - 100)) cands.push([f, bw]);
   }
-  if (cands.length < 2) return null;
+  // 真共振峰的极点很窄（带宽 7-80 Hz）；带宽二三百的那些是谱包络之间的
+  // 寄生极点（/i/ 在 10 kHz 下会被读成 F2 864，真值 2670）。先要窄的，
+  // 不够两个再放宽。
+  const loose = cands.filter(c => c[1] < 500).map(c => c[0]);
+  const tight = cands.filter(c => c[1] < 150).map(c => c[0]);
+  const pool = tight.length >= 2 ? tight : loose;
+  if (pool.length < 2) return null;
+  cands.length = 0;
+  cands.push(...pool);
   cands.sort((p, q) => p - q);
   const out = [cands[0]];
   for (const f of cands) {

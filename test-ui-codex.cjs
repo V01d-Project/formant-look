@@ -1,5 +1,5 @@
-﻿const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const html=fs.readFileSync('index-codex.html','utf8'),elements={};
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const html=fs.readFileSync('index.html','utf8'),elements={};
 function elem(id){return elements[id]??=( {id,value:id==='gender'?'f':'0',checked:false,hidden:false,disabled:false,innerHTML:'',textContent:'',add(){},setAttribute(k,v){this[k]=v;}});}
 const modes=['single','guide','sentence'].map(m=>({...elem(m),dataset:{mode:m}}));
 const c=vm.createContext({document:{getElementById:elem,querySelectorAll:q=>q.includes('[data-mode]')?modes:[]},window:{addEventListener(){}},Option:function(){},console,Float32Array,Float64Array,setTimeout,clearInterval});

@@ -1,5 +1,5 @@
-﻿const fs=require('fs'),vm=require('vm'),cp=require('child_process'),assert=require('assert/strict');
-const html=fs.readFileSync('index-codex.html','utf8');const dsp=html.split('// ==== DSP BEGIN ====')[1].split('// ==== DSP END ====')[0];vm.runInThisContext(dsp);
+const fs=require('fs'),vm=require('vm'),cp=require('child_process'),assert=require('assert/strict');
+const html=fs.readFileSync('index.html','utf8');const dsp=html.split('// ==== DSP BEGIN ====')[1].split('// ==== DSP END ====')[0];vm.runInThisContext(dsp);
 function decode(f,sr=10000){const r=cp.spawnSync('C:/Users/Sylphie/.dsh/tools/ffmpeg/bin/ffmpeg.exe',['-v','error','-i',f,'-ac','1','-ar',String(sr),'-f','f32le','-'],{maxBuffer:1e8});assert.equal(r.status,0,r.stderr.toString());return Float32Array.from({length:r.stdout.length/4},(_,i)=>r.stdout.readFloatLE(i*4));}
 let count=0;
 for(const sr of [10000,44100,48000]){const x=decode('../vowel-test.wav',sr);for(const [i,n]of ['a','i','u'].entries()){const truth=[[850,1300,190],[350,2700,200],[370,950,185]][i];const r=analyseVoice(x.slice(Math.round(i*1.8*sr),Math.round((i*1.8+1.3)*sr)),sr);assert(r.ok,n+' no result');for(const [j,k]of ['F1','F2'].entries()){assert(Math.abs(r[k].mid/truth[j]-1)<=.15,`${n} ${k}: ${r[k].mid}`);count++;}assert(Math.abs(r.F0.mid/truth[2]-1)<=.05);count++;console.log(`PASS synth ${n} @${sr}: F1=${r.F1.mid.toFixed(1)} F2=${r.F2.mid.toFixed(1)} F0=${r.F0.mid.toFixed(2)} frames=${r.frames} errors=${(100*Math.abs(r.F1.mid/truth[0]-1)).toFixed(1)}%/${(100*Math.abs(r.F2.mid/truth[1]-1)).toFixed(1)}%`);}}
