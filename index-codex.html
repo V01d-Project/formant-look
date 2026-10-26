@@ -138,10 +138,21 @@ function analyseVoice(samples,sr){
  const pre=new Float64Array(size);let mean=0;for(const v of seg)mean+=v/size;
  for(let i=0;i<size;i++)pre[i]=((seg[i]-mean)-.97*((i?seg[i-1]:seg[i])-mean))*(.54-.46*Math.cos(2*Math.PI*i/(size-1)));
  const a=levinson(autocorr(pre,10),10);if(!a)continue;
+ // 找峰两条约束（2026-10-26）：峰要有 >=1 dB 突出度；F2 优先取 2200 Hz 以下那个。
  const db=lpcEnvelope(a,rate,5), peaks=[];
- for(let k=30;k<700;k++)if(db[k]>db[k-1]&&db[k]>=db[k+1]){const den=db[k-1]-2*db[k]+db[k+1];peaks.push((k+(den?(db[k-1]-db[k+1])/(2*den):0))*5);}
- if(peaks.length<2||peaks[0]>1200||peaks[1]-peaks[0]<150)continue;
- frames.push({t:s/rate,F1:peaks[0],F2:peaks[1],F0:p.hz,periodicity});
+ for(let k=36;k<800;k++){if(!(db[k]>db[k-1]&&db[k]>=db[k+1]))continue;
+  let lo=Infinity,hi=Infinity;
+  for(let j=Math.max(36,k-50);j<k;j++)lo=Math.min(lo,db[j]);
+  for(let j=k+1;j<=Math.min(800,k+50);j++)hi=Math.min(hi,db[j]);
+  if(db[k]-Math.max(lo,hi)<1)continue;
+  const den=db[k-1]-2*db[k]+db[k+1];
+  peaks.push((k+(den?(db[k-1]-db[k+1])/(2*den):0))*5);}
+ if(peaks.length<2)continue;
+ const f1=peaks[0];if(f1>1200)continue;
+ const above=peaks.filter(h=>h-f1>=150);if(!above.length)continue;
+ const low=above.filter(h=>h<=2200);
+ const f2=low.length?low[0]:above[0];
+ frames.push({t:s/rate,F1:f1,F2:f2,F0:p.hz,periodicity});
  }
  const stat=k=>{const v=frames.map(f=>f[k]);return {mid:quant(v,.5),lo:quant(v,.1),hi:quant(v,.9)};};
  let clipped=0;for(const v of samples)if(Math.abs(v)>=.99)clipped++;
